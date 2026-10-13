@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useNavigate } from "react-router"
 import { differenceInMonths, format, isValid, parse } from "date-fns"
 import { toast } from "sonner"
-import { BookOpen, Clock, Info, Save, Search, Send } from "lucide-react"
+import { Clock, Info, Search, Send } from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
@@ -283,14 +283,14 @@ export function AddTaskPage() {
 
   /* ---------- Actions ---------- */
 
-  function saveDraft() {
-    try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(form))
-      toast.success("Draft saved", { description: "It reopens here the next time you add a task." })
-    } catch {
-      toast.error("Could not save the draft in this browser")
-    }
-  }
+  // function saveDraft() {
+  //   try {
+  //     localStorage.setItem(DRAFT_KEY, JSON.stringify(form))
+  //     toast.success("Draft saved", { description: "It reopens here the next time you add a task." })
+  //   } catch {
+  //     toast.error("Could not save the draft in this browser")
+  //   }
+  // }
 
   function submit() {
     if (missing.length) {
