@@ -3,12 +3,12 @@ import { CalendarDays } from "lucide-react"
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
 import { SectionCard } from "@/components/common/section-card"
-import { maintenanceTrend, maintenanceTypes } from "@/data/dashboard"
+import { maintenanceTypes, type MaintenanceMonth } from "@/data/dashboard"
 
 const config = Object.fromEntries(maintenanceTypes.map((t) => [t.key, { label: t.label, color: t.color }])) satisfies ChartConfig
 
 /** Stacked monthly maintenance activities by type, last six months */
-export function MaintenanceTrend() {
+export function MaintenanceTrend({ data }: { data: MaintenanceMonth[] }) {
   return (
     <SectionCard
       title="Maintenance Activity Trend"
@@ -20,7 +20,7 @@ export function MaintenanceTrend() {
       }
     >
       <ChartContainer config={config} className="aspect-auto h-44 w-full">
-        <BarChart data={maintenanceTrend} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey="month" tickLine={false} axisLine={false} fontSize={11} />
           <YAxis tickLine={false} axisLine={false} fontSize={11} />

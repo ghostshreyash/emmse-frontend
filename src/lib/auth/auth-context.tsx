@@ -58,18 +58,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setResetContext(null)
   }, [])
 
+  const updateUser = useCallback((changes: Partial<Pick<AuthUser, "name" | "email" | "mobile">>) => {
+    // TODO(aws): PATCH /me; a new email or mobile should be verified by OTP first.
+    setSession((current) => {
+      if (!current) return current
+      const user = { ...current.user, ...changes }
+      if (changes.name) {
+        // First and last name, so "Rahul Kumar Mehta" still reads "RM"
+        const words = changes.name.trim().split(/\s+/)
+        user.initials = `${words[0][0]}${words.length > 1 ? words[words.length - 1][0] : ""}`.toUpperCase()
+      }
+      const next = { ...current, user }
+      writeStoredSession(next)
+      return next
+    })
+  }, [])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       user: session?.user ?? null,
       signIn,
       signOut,
+      updateUser,
       challenge,
       setChallenge,
       resetContext,
       setResetContext,
     }),
-    [session, signIn, signOut, challenge, resetContext]
+    [session, signIn, signOut, updateUser, challenge, resetContext]
   )
 
   return <AuthContext value={value}>{children}</AuthContext>
