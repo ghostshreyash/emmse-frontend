@@ -13,6 +13,15 @@ import { DashboardPage } from "@/pages/dashboard"
 import { AppLayout } from "@/layouts/app-layout"
 import { sections } from "@/config/navigation"
 import { ProfilePage } from "@/pages/profile"
+import { TaskDetailsPage } from "@/pages/task-details"
+import { TasksPage } from "@/pages/tasks"
+import { AddTaskPage } from "@/pages/add-task"
+import { InspectionsPage } from "@/pages/inspections"
+import { InspectionDetailsPage } from "@/pages/inspection-details"
+import { AddInspectionPage } from "@/pages/add-inspection"
+
+/** Sections with a real screen; every other section gets a placeholder page */
+const built = new Set(["/", "/tasks", "/inspection-activities"])
 
 export const router = createBrowserRouter([
   { path: "/login", element: <PublicOnly><LoginPage /></PublicOnly> },
@@ -33,9 +42,15 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: "profile", element: <ProfilePage /> },
+          { path: "tasks", element: <TasksPage /> },
+          { path: "tasks/add", element: <AddTaskPage /> },
+          { path: "tasks/:id", element: <TaskDetailsPage /> },
+          { path: "inspection-activities", element: <InspectionsPage /> },
+          { path: "inspection-activities/add", element: <AddInspectionPage /> },
+          { path: "inspection-activities/:id", element: <InspectionDetailsPage /> },
           // Remaining sections show a placeholder until their screens are built
           ...Object.values(sections)
-            .filter((item) => item.path !== "/")
+            .filter((item) => !built.has(item.path))
             .map((item) => ({ path: item.path.slice(1), element: <ComingSoonPage title={item.title} /> })),
           { path: "*", element: <ComingSoonPage title="Page not found" /> },
         ],
