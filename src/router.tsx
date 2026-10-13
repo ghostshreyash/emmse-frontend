@@ -11,7 +11,8 @@ import { AccountRecoveryPage } from "@/pages/auth/account-recovery"
 import { ComingSoonPage } from "@/pages/coming-soon"
 import { DashboardPage } from "@/pages/dashboard"
 import { AppLayout } from "@/layouts/app-layout"
-import { navigation } from "@/config/navigation"
+import { sections } from "@/config/navigation"
+import { ProfilePage } from "@/pages/profile"
 
 export const router = createBrowserRouter([
   { path: "/login", element: <PublicOnly><LoginPage /></PublicOnly> },
@@ -31,8 +32,9 @@ export const router = createBrowserRouter([
         element: <AppLayout />,
         children: [
           { index: true, element: <DashboardPage /> },
-          // Remaining sidebar entries show a placeholder until their screens are built
-          ...navigation
+          { path: "profile", element: <ProfilePage /> },
+          // Remaining sections show a placeholder until their screens are built
+          ...Object.values(sections)
             .filter((item) => item.path !== "/")
             .map((item) => ({ path: item.path.slice(1), element: <ComingSoonPage title={item.title} /> })),
           { path: "*", element: <ComingSoonPage title="Page not found" /> },

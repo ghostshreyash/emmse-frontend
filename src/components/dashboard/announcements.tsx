@@ -1,11 +1,11 @@
 import { ChevronRight, Megaphone } from "lucide-react"
 
 import { SectionCard } from "@/components/common/section-card"
-import { announcements } from "@/data/dashboard"
+import type { Announcement } from "@/data/dashboard"
 
-export function Announcements() {
+export function Announcements({ announcements }: { announcements: Announcement[] }) {
   return (
-    <SectionCard title="Announcements" icon={<Megaphone className="size-4 text-primary" />} viewAllTo="/support">
+    <SectionCard title="Announcements" icon={<Megaphone className="size-4 text-primary" />} viewAllTo="/support" disabled>
       <ul className="space-y-2.5">
         {announcements.map((a) => (
           <li key={a.title} className="flex gap-1.5 text-xs">
