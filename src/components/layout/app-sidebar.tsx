@@ -1,6 +1,5 @@
 import { NavLink, useLocation } from "react-router"
 import { Leaf } from "lucide-react"
-import { cn } from "cn"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -16,7 +15,6 @@ import {
 } from "@/components/ui/sidebar"
 import { OlivineEmblem, OlivineLogo } from "@/components/layout/olivine-logo"
 import { navigation, type NavItem } from "@/config/navigation"
-import { useOnline } from "@/hooks/use-online"
 import { useAuth } from "@/lib/auth/context"
 
 const under = (current: string, path: string) =>
@@ -27,13 +25,16 @@ function isActivePath(current: string, item: NavItem) {
   return [item.path, ...(item.covers ?? [])].some((path) => under(current, path))
 }
 
-/** The signed-in admin, their enterprise and the connection state, above the menu */
+/** The signed-in admin, their enterprise and email, above the menu; opens My Profile */
 function Profile() {
   const { user } = useAuth()
-  const online = useOnline()
 
   return (
-    <div className="flex items-center gap-3 border-b border-sidebar-border px-3 py-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+    <NavLink
+      to="/profile"
+      title="My Profile"
+      className="flex items-center gap-3 border-b border-sidebar-border px-3 py-3 transition-colors hover:bg-sidebar-accent/40 aria-[current=page]:bg-sidebar-accent/40 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
+    >
       <Avatar className="size-12 ring-2 ring-white/80 group-data-[collapsible=icon]:size-8">
         <AvatarFallback className="bg-primary text-base font-semibold text-primary-foreground">{user?.initials}</AvatarFallback>
       </Avatar>
@@ -41,12 +42,9 @@ function Profile() {
         <div className="truncate font-semibold text-sidebar-foreground">{user?.name}</div>
         <div className="truncate text-sidebar-foreground/80">{user?.role}</div>
         <div className="truncate text-sidebar-foreground/80">{user?.enterprise}</div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-xs">
-          <span className={cn("size-2 rounded-full", online ? "bg-healthy" : "bg-offline")} />
-          <span className={online ? "text-healthy" : "text-sidebar-foreground/70"}>{online ? "Online" : "Offline"}</span>
-        </div>
+        <div className="mt-0.5 truncate text-xs text-sidebar-foreground/70" title={user?.email}>{user?.email}</div>
       </div>
-    </div>
+    </NavLink>
   )
 }
 

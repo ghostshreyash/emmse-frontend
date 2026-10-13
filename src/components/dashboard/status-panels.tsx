@@ -1,11 +1,13 @@
-import { ChartNoAxesColumn, CircleCheck, CloudUpload, Leaf, ShieldCheck } from "lucide-react"
+import { ChartNoAxesColumn, CircleCheck, CloudUpload, ShieldCheck } from "lucide-react"
 
-import { compliance, dataSync, systemUsage } from "@/data/dashboard"
+import { SectionCard } from "@/components/common/section-card"
+import type { DashboardData } from "@/data/dashboard"
 
+/* Compliance and sync sit beside the assets table; System Usage is a Phase 2 panel */
 const panel = "rounded-lg bg-card p-3 shadow-xs ring-1 ring-foreground/10"
 const heading = "mb-2 flex items-center gap-1.5 text-sm font-semibold"
 
-function ComplianceSafety() {
+export function ComplianceSafety({ compliance }: Pick<DashboardData, "compliance">) {
   return (
     <section className={`${panel} bg-healthy-soft/60`}>
       <h3 className={heading}>
@@ -27,7 +29,7 @@ function ComplianceSafety() {
   )
 }
 
-function DataSyncStatus() {
+export function DataSyncStatus({ dataSync }: Pick<DashboardData, "dataSync">) {
   return (
     <section className={panel}>
       <h3 className={heading}>
@@ -46,12 +48,9 @@ function DataSyncStatus() {
   )
 }
 
-function SystemUsage() {
+export function SystemUsage({ systemUsage }: Pick<DashboardData, "systemUsage">) {
   return (
-    <section className={panel}>
-      <h3 className={heading}>
-        <ChartNoAxesColumn className="size-4 text-primary" /> System Usage
-      </h3>
+    <SectionCard title="System Usage" icon={<ChartNoAxesColumn className="size-4 text-primary" />} disabled>
       <div className="grid grid-cols-2 gap-2">
         {[
           { value: systemUsage.activeUsers, label: "Active Users", tone: "text-primary" },
@@ -66,32 +65,6 @@ function SystemUsage() {
           </div>
         ))}
       </div>
-    </section>
-  )
-}
-
-function SustainabilityBanner() {
-  return (
-    <section className="relative min-h-24 overflow-hidden rounded-lg shadow-xs ring-1 ring-foreground/10">
-      {/* TODO: replace with OLIVINE's own licensed photography */}
-      <img src="/brand/emmse-scene.jpg" alt="" className="absolute inset-0 size-full object-cover object-bottom" />
-      <div className="absolute inset-0 bg-gradient-to-l from-brand-navy/85 via-brand-navy/50 to-transparent" />
-      <p className="relative ml-auto flex h-full max-w-[60%] items-center gap-1.5 p-3 text-right text-sm leading-snug font-semibold text-white">
-        Reliable Electrical Assets Powering a Sustainable Tomorrow.
-        <Leaf className="size-5 shrink-0 fill-healthy text-healthy" />
-      </p>
-    </section>
-  )
-}
-
-/** The bottom row of the dashboard: compliance, sync, usage and the brand banner */
-export function StatusStrip() {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <ComplianceSafety />
-      <DataSyncStatus />
-      <SystemUsage />
-      <SustainabilityBanner />
-    </div>
+    </SectionCard>
   )
 }

@@ -8,6 +8,8 @@ export type AuthContextValue = {
   /** Completes login once an OTP has been verified. */
   signIn: (user: AuthUser, remember: boolean) => void
   signOut: () => void
+  /** Applies profile edits to the signed-in user and keeps the stored session in step. */
+  updateUser: (changes: Partial<Pick<AuthUser, "name" | "email" | "mobile">>) => void
   /** OTP challenge awaiting verification, handed between the auth screens. */
   challenge: OtpChallenge | null
   setChallenge: (challenge: OtpChallenge | null) => void
