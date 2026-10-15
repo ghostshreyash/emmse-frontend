@@ -7,7 +7,7 @@
 import { addDays, format } from "date-fns"
 
 import { enterpriseInfo, plants } from "@/data/dashboard"
-import { inspectionTypes } from "@/data/master-data"
+import { inspectionTypes, type AssetCriticality } from "@/data/master-data"
 
 /** dd-MM-yyyy, offset from today, so the books always sit around the current date */
 export const day = (offset: number) => format(addDays(new Date(), offset), "dd-MM-yyyy")
@@ -44,9 +44,13 @@ export function slotFor(key: string) {
 export const priorities = ["Low", "Medium", "High", "Critical"] as const
 export type Priority = (typeof priorities)[number]
 
-/** How badly a failure on the asset would hurt */
-export const assetCriticality = ["High", "Medium", "Low"] as const
-export type AssetCriticality = (typeof assetCriticality)[number]
+/**
+ * How badly a failure on the asset would hurt. The list itself is the parameter
+ * sheet's Asset Criticality, held in master-data beside the other sheet
+ * vocabularies; it is re-exported here because this is where the screens that
+ * use it already reach for their pools.
+ */
+export { assetCriticality, type AssetCriticality } from "@/data/master-data"
 
 export const areas = ["Main Substation (11kV)", "LT Panels - Block A", "DG Set Area", "Production Floor", "Utility Area", "Cable Trench"]
 export const assetCategories = ["LT Panel", "HT Panel", "APFC Panel", "MCC", "PCC", "PDB", "Switchboard", "Transformer", "UPS", "Distribution Board", "Control Panel", "Fire Alarm Panel"]

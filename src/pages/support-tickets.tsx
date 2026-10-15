@@ -19,7 +19,7 @@ import { useTicketRows } from "@/data/ticket-store"
 import { ticketCategories, type TicketRow } from "@/data/tickets"
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
-import { ticketFilterStatuses, workStatus, type WorkStatus } from "@/lib/status"
+import { ticketStatuses, workStatus, type WorkStatus } from "@/lib/status"
 
 const ANY = "all"
 
@@ -36,6 +36,7 @@ const stamp = (mark: string) => {
 type SortKey = "id" | "subject" | "category" | "plant" | "raisedBy" | "raised" | "lastUpdated" | "priority" | "status"
 
 const priorityRank: Record<string, number> = { Low: 0, Medium: 1, High: 2, Critical: 3 }
+/** Open before Closed: an outstanding ticket is the one being looked for */
 const statusRank: Record<WorkStatus, number> = { open: 0, reopened: 1, pending: 2, in_progress: 3, assigned: 4, rejected: 5, completed: 6, closed: 7 }
 
 const sortValue: Record<SortKey, (r: TicketRow) => string | number> = {
@@ -77,10 +78,9 @@ const exportColumns: ExportColumn<TicketRow>[] = [
  * Reports as tables, so tickets are a table too, with the same toolbar, sorting
  * and export as those screens. The story moves to the details page.
  *
- * Status reads the desk's own three - Open, In Progress, Closed - rather than
- * EVITA's two. An enterprise administrator chasing a ticket wants to know
- * whether anybody has picked it up, which is exactly the distinction EVITA
- * folds away.
+ * A ticket is Open or Closed and nothing in between - see `ticketStatuses`.
+ * Whether the desk has started on it is the desk's business; what the
+ * enterprise can act on is whether the ticket is still outstanding.
  */
 export function SupportTicketsPage() {
   const navigate = useNavigate()
@@ -202,7 +202,7 @@ export function SupportTicketsPage() {
               <SelectTrigger size="sm" className={cn(control, "w-36 bg-card")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ANY}>All Statuses</SelectItem>
-                {ticketFilterStatuses.map((s) => <SelectItem key={s} value={s}>{workStatus[s].label}</SelectItem>)}
+                {ticketStatuses.map((k) => <SelectItem key={k} value={k}>{workStatus[k].label}</SelectItem>)}
               </SelectContent>
             </Select>
             <DateRangeFilter label="Raised" range={range} onApply={(r) => { setRange(r); setPage(1) }} />

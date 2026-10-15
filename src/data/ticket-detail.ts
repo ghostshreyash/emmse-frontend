@@ -91,42 +91,40 @@ export function ticketDetail(row: TicketRow): TicketDetail {
   }
   const pick = <T,>(pool: readonly T[]) => pool[Math.floor(random() * pool.length)]
 
-  const raisedAt = at(row.raised, 9 + Math.floor(random() * 4), Math.floor(random() * 6) * 10)
   const owner = pick(deskOwners)
-  /* Anything past Open has been picked up; only a closed ticket has an answer */
-  const pickedUp = row.status !== "open"
+  /*
+   * An open ticket has not moved since it was raised, so the row's own
+   * `lastUpdated` **is** the raise moment - taking it from there rather than
+   * rolling another hour here keeps the Last Updated column and the first line
+   * of the trail saying the same thing.
+   */
+  const raisedAt =
+    row.status === "open" ? row.lastUpdated : at(row.raised, 9 + Math.floor(random() * 4), Math.floor(random() * 6) * 10)
+  /* A ticket is Open or Closed, and only a closed one has an answer against it */
   const settled = row.status === "closed"
 
-  /* --- the trail: raised, picked up, resolved, closed, reopened --- */
+  /*
+   * The trail: raised, and - once it is closed - picked up, answered and closed.
+   * The pick-up line is on the trail rather than in the status, which is where
+   * the detail of how the desk worked it belongs.
+   */
   const history: TicketEvent[] = [
     { at: raisedAt, by: row.raisedBy, action: "Ticket Raised", note: `${row.category} · from ${row.source}` },
   ]
 
-  if (pickedUp) {
+  let resolution: TicketResolution | undefined
+  if (settled) {
     history.push({
       at: plusHours(raisedAt, 1 + Math.floor(random() * 4)),
       by: owner,
       action: "Picked Up By The Desk",
       note: `Assigned to ${owner}`,
     })
-  }
 
-  let resolution: TicketResolution | undefined
-  if (settled) {
     const resolvedAt = plusHours(row.lastUpdated, 0)
     resolution = { by: owner, at: resolvedAt, summary: pick(resolutions) }
     history.push({ at: resolvedAt, by: owner, action: "Ticket Resolved", note: resolution.summary })
     history.push({ at: plusHours(resolvedAt, 2), by: owner, action: "Ticket Closed", note: "Confirmed with the reporter" })
-  }
-
-  /* A reopened ticket was closed once and came back, so it carries both */
-  if (row.status === "reopened") {
-    history.push({
-      at: plusHours(row.lastUpdated, 0),
-      by: row.raisedBy,
-      action: "Ticket Reopened",
-      note: "The original problem has come back on the same asset.",
-    })
   }
 
   /* --- what the reporter attached --- */
@@ -164,9 +162,9 @@ export function ticketDetail(row: TicketRow): TicketDetail {
     attachments,
     resolution,
     /*
-     * The trail is built a lifecycle stage at a time, so it is ordered by the
-     * clock before it is read - a reopening lands after a closure, and the
-     * stamps the row carries are not guaranteed to be in that order.
+     * The trail is built a stage at a time off two different stamps - when the
+     * ticket was raised and when it was last updated - so it is ordered by the
+     * clock before it is read rather than trusted to come out in order.
      */
     history: [...history].sort((a, b) => stampTime(a.at) - stampTime(b.at)),
   }

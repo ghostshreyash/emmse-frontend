@@ -115,12 +115,12 @@ const sourceByCategory: Record<TicketCategory, TicketSource> = {
 }
 
 /**
- * The statuses a ticket is dealt out across, by **position** rather than by
- * hashing, so every bucket on the status filter has rows behind it. A hash
- * divisor over a book this size has emptied one before, which shows on screen
- * as a filter that selects nothing.
+ * A ticket is Open or Closed - see `ticketStatuses`. Dealt out by **position**
+ * rather than by hashing, so both buckets on the status filter have rows behind
+ * them: a hash divisor over a book this size has emptied one before, which
+ * shows on screen as a filter that selects nothing.
  */
-const statusSpread: WorkStatus[] = ["open", "in_progress", "closed", "closed", "open", "in_progress", "closed", "reopened"]
+const statusSpread: WorkStatus[] = ["open", "closed", "closed", "open", "closed", "closed", "open", "closed"]
 
 /* ---------- Generated book ---------- */
 
@@ -155,16 +155,23 @@ function generateTickets(count: number): TicketRow[] {
     // Walked in order, so every plant, category and reporter appears once the count covers them
     const plant = plants[i % plants.length].name
     const category = ticketCategories[i % ticketCategories.length]
-    const raised = day(-(2 + Math.floor(random() * 56)))
     const status = statusSpread[i % statusSpread.length]
 
     /*
-     * A ticket still open has not moved since it was raised; one the desk has
-     * touched was last updated afterwards. Both stamps are hours on the same
-     * working day, which is what the trail on the details screen is built from.
+     * When it was raised, and when it last moved - the second measured **from**
+     * the first, never drawn on its own. Both dates used to come from their own
+     * roll of the dice, which let a ticket be settled before it was raised: the
+     * trail on the details screen is sorted by the clock, so that showed up as
+     * Resolved and Closed sitting above Ticket Raised.
+     *
+     * A closed ticket is settled a day to three later. An open one has not moved,
+     * so its last update is the moment it was raised, which is what the details
+     * screen reads back as the raise time.
      */
+    const raisedOn = -(2 + Math.floor(random() * 56))
+    const raised = day(raisedOn)
     const movedOn = status === "open" ? 0 : 1 + Math.floor(random() * 3)
-    const hour = 9 + Math.floor(random() * 6)
+    const hour = 9 + Math.floor(random() * (movedOn ? 6 : 4))
 
     rows.push({
       id: `TKT-${1480 + count - i}`,
@@ -174,7 +181,7 @@ function generateTickets(count: number): TicketRow[] {
       raised,
       raisedBy: reporters[i % reporters.length],
       source: sourceByCategory[category],
-      lastUpdated: `${movedOn ? day(-(2 + Math.floor(random() * 56)) + movedOn) : raised} ${String(hour).padStart(2, "0")}:${String(Math.floor(random() * 6) * 10).padStart(2, "0")}`,
+      lastUpdated: `${day(raisedOn + movedOn)} ${String(hour).padStart(2, "0")}:${String(Math.floor(random() * 6) * 10).padStart(2, "0")}`,
       priority: pick(priorities),
       status,
       ...linkedRecord(category, plant, Math.floor(i / plants.length)),

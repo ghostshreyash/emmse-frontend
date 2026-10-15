@@ -119,13 +119,14 @@ export const inspectionStatus: Partial<Record<WorkStatus, (typeof workStatus)[Wo
 export const inspectionStatuses: WorkStatus[] = ["pending", "in_progress", "completed"]
 
 /**
- * A support ticket runs Open → In Progress → Closed. Reopened is carried so a
- * ticket that comes back renders correctly; nothing sets it yet.
+ * A support ticket is Open or Closed, and nothing in between. The desk works it
+ * either way, so "In Progress" told the enterprise nothing it could act on —
+ * what it wants to know is whether the ticket is still outstanding.
+ *
+ * This is the whole list and what the Status filter offers; there is no second
+ * list for the filter to drift from.
  */
-export const ticketStatuses: WorkStatus[] = ["open", "in_progress", "closed", "reopened"]
-
-/** What the Status filter offers — the three states a ticket can be in */
-export const ticketFilterStatuses: WorkStatus[] = ["open", "in_progress", "closed"]
+export const ticketStatuses: WorkStatus[] = ["open", "closed"]
 
 /** Categorical series colours, in order, for charts with arbitrary groups */
 export const chartSeries = [

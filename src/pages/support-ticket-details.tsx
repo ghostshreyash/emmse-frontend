@@ -13,21 +13,14 @@ import { findTicket, useTicketDetails } from "@/data/ticket-store"
 import { control } from "@/lib/data-table"
 import { workStatus, type WorkStatus } from "@/lib/status"
 
-/** Plain-English standing, so each status reads for what it actually is */
-function narrative(status: WorkStatus, by: string) {
-  switch (status) {
-    case "open":
-      return `Raised by ${by} and waiting for the OLIVINE helpdesk to pick it up.`
-    case "in_progress":
-      return "The helpdesk has picked this up and is working it. The answer lands here and on the trail below."
-    case "closed":
-      return "Settled and closed out. Reopen it by reporting the issue again if it comes back."
-    case "reopened":
-      return "This was closed once and has come back, so it is with the helpdesk again."
-    default:
-      return `Raised by ${by}.`
-  }
-}
+/**
+ * Plain-English standing. A ticket is Open or Closed - see `ticketStatuses` -
+ * so there are two things to say about one.
+ */
+const narrative = (status: WorkStatus, by: string) =>
+  status === "closed"
+    ? "Settled and closed out. If the problem comes back, report it again and a fresh ticket is raised."
+    : `Raised by ${by} and still with the OLIVINE helpdesk. The answer lands here and on the trail below.`
 
 /**
  * One support ticket: what was reported, what was attached, what came back, and
@@ -132,9 +125,7 @@ export function SupportTicketDetailsPage() {
             ) : (
               <p className="flex items-center gap-1.5 rounded-lg bg-attention-soft px-3 py-2.5 text-xs text-attention-soft-foreground">
                 <Clock className="size-3.5 shrink-0" />
-                {ticket.status === "open"
-                  ? "Still waiting for the OLIVINE helpdesk to pick this up."
-                  : "The OLIVINE helpdesk is working this. The answer lands here."}
+                The OLIVINE helpdesk has this. The answer lands here once it is settled.
               </p>
             )}
           </SectionCard>

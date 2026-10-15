@@ -62,6 +62,19 @@ export const activityTypeOptions = [...inspectionTypes, ...maintenanceTypes] as 
 
 export type ActivityType = InspectionType | MaintenanceType
 
+/* ---------- Asset ---------- */
+
+/**
+ * Asset Criticality (parameter sheet, "Asset"). How badly a failure here would
+ * hurt, which the client defined by function at the 03-10-2026 review: a panel
+ * directly affecting the operational performance of the enterprise is critical,
+ * an admin or guest-house panel is not. It is a property of the **asset**, not
+ * of a job against it.
+ */
+export const assetCriticality = ["High", "Medium", "Low"] as const
+
+export type AssetCriticality = (typeof assetCriticality)[number]
+
 /* ---------- Health score ---------- */
 
 /**

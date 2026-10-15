@@ -10,6 +10,7 @@ import { SectionCard } from "@/components/common/section-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { healthBandFor } from "@/data/master-data"
+import { criticalityTone } from "@/data/operations"
 import { hasReport, reportDocuments, type ReportDocument } from "@/data/report-documents"
 import { contaminationTone, findingLook, findReport, type ReportRow } from "@/data/reports"
 import { control } from "@/lib/data-table"
@@ -82,6 +83,11 @@ export function ReportDetailsPage() {
               <Detail label="Manufacturer">{asset.manufacturer}</Detail>
               <Detail label="Model">{asset.model}</Detail>
               <Detail label="Serial Number"><span className="tabular-nums">{asset.serial}</span></Detail>
+              <Detail label="Asset Criticality">
+                <span className={cn("rounded px-1.5 py-0.5 text-[0.65rem] font-semibold", criticalityTone[asset.criticality])}>
+                  {asset.criticality}
+                </span>
+              </Detail>
               <Detail label="Commissioned On"><span className="tabular-nums">{asset.commissionedOn}</span></Detail>
               <Detail label="Health Score">
                 <span className="flex items-center gap-1.5">

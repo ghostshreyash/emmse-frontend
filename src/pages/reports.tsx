@@ -13,11 +13,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { plants } from "@/data/dashboard"
 import { healthBandFor } from "@/data/master-data"
+import { criticalityTone } from "@/data/operations"
 import { reportDocuments, type ReportKind } from "@/data/report-documents"
-import { contaminationTone, findingLook, findings, reportRows, type Finding, type ReportRow } from "@/data/reports"
+import { findingLook, findings, reportRows, type Finding, type ReportRow } from "@/data/reports"
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
-import { healthStatus } from "@/lib/status"
 
 const ANY = "all"
 
@@ -27,9 +27,12 @@ const documentFor = Object.fromEntries(reportDocuments.map((doc) => [doc.kind, d
   (typeof reportDocuments)[number]
 >
 
-type SortKey = "assetId" | "asset" | "plant" | "health" | "contamination" | "hygiene" | "cleaning"
+type SortKey = "assetId" | "asset" | "plant" | "criticality" | "contamination" | "hygiene" | "cleaning"
 
 const findingRank: Record<Finding, number> = { Healthy: 0, Alarming: 1, "At Risk": 2 }
+
+/** Sorted worst-first the same way the findings are: the ones that matter most sort together */
+const criticalityRank: Record<string, number> = { Low: 0, Medium: 1, High: 2 }
 
 /** dd-MM-yyyy sorts as a moment, not as text, or December would come before February */
 const asMoment = (dmy: string) => {
@@ -42,7 +45,7 @@ const sortValue: Record<SortKey, (r: ReportRow) => string | number> = {
   assetId: (r) => r.asset.tagId,
   asset: (r) => r.asset.name,
   plant: (r) => r.asset.plant,
-  health: (r) => r.healthScore,
+  criticality: (r) => criticalityRank[r.asset.criticality],
   contamination: (r) => findingRank[r.contaminationStatus],
   hygiene: (r) => r.hygieneOpen,
   cleaning: (r) => asMoment(r.maintenance?.on ?? ""),
@@ -61,9 +64,10 @@ const exportColumns: ExportColumn<ReportRow>[] = [
   { header: "Asset", value: (r) => r.asset.name },
   { header: "Plant", value: (r) => r.asset.plant },
   { header: "Category", value: (r) => r.asset.category },
+  { header: "Criticality", value: (r) => r.asset.criticality },
   { header: "Health Score", value: (r) => String(r.healthScore) },
   { header: "Health", value: (r) => healthBandFor(r.healthScore).label },
-  { header: "Contamination", value: (r) => `${r.contamination} · ${r.contaminationStatus}` },
+  { header: "Contamination Level", value: (r) => r.contamination },
   { header: "Hygiene", value: (r) => (r.hygieneOpen ? `${r.hygieneOpen} of ${r.hygiene.length} open` : "All points clear") },
   { header: "Last Cleaned", value: (r) => r.maintenance?.on ?? "Not cleaned yet" },
   { header: "Inspection", value: (r) => `${r.inspection.id} (${r.inspection.activity})` },
@@ -230,7 +234,7 @@ export function ReportsPage() {
                 <SortHead label="Asset ID" column="assetId" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <SortHead label="Asset" column="asset" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <SortHead label="Plant" column="plant" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
-                <SortHead label="Health Score" column="health" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
+                <SortHead label="Criticality" column="criticality" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <SortHead
                   label="Contamination"
                   column="contamination"
@@ -243,9 +247,7 @@ export function ReportsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shown.map((r, i) => {
-                const band = healthBandFor(r.healthScore)
-                return (
+              {shown.map((r, i) => (
                   <TableRow key={r.asset.tagId} onClick={() => navigate(`/reports/${r.asset.tagId}`)} className="cursor-pointer">
                     <TableCell className={cn(td, "tabular-nums text-muted-foreground")}>{start + i + 1}</TableCell>
                     <TableCell className={cn(td, "font-medium whitespace-nowrap")}>{r.asset.tagId}</TableCell>
@@ -258,26 +260,27 @@ export function ReportsPage() {
                       <span className="block text-[0.65rem] text-muted-foreground">{r.asset.department}</span>
                     </TableCell>
                     <TableCell className={cn(td, "whitespace-nowrap")}>
-                      <span className="flex items-center gap-1.5">
-                        <span aria-hidden className={cn("size-2 shrink-0 rounded-full", healthStatus[band.tone].dot)} />
-                        <span className="font-semibold tabular-nums">{r.healthScore}</span>
-                        <span className="text-[0.65rem] text-muted-foreground">{band.label}</span>
+                      <span className={cn("rounded px-1.5 py-0.5 text-[0.65rem] font-semibold", criticalityTone[r.asset.criticality])}>
+                        {r.asset.criticality}
                       </span>
                     </TableCell>
 
                     {/* ---------- The three reports ---------- */}
 
-                    {/* Contamination: the dust level, what it scores as, and the document */}
+                    {/*
+                     * Contamination carries the Health Score, because this is the
+                     * report that produces it - the dust level behind the score is
+                     * on the asset's own screen rather than crowding the column.
+                     */}
                     <ReportCell
                       className="border-l border-foreground/10"
                       onView={() => openReport(r, "contamination")}
                       headline={
-                        <>
-                          <span className={cn("rounded px-1.5 py-0.5 text-[0.65rem] font-semibold", contaminationTone[r.contamination])}>
-                            {r.contamination}
-                          </span>
-                          <span className="block text-[0.65rem] text-muted-foreground">{r.contaminationStatus}</span>
-                        </>
+                        <span className="flex items-center gap-1.5">
+                          <span aria-hidden className={cn("size-2 shrink-0 rounded-full", findingLook[r.contaminationStatus].dot)} />
+                          <span className="text-sm leading-none font-bold tabular-nums">{r.healthScore}</span>
+                          <span className="text-[0.7rem] text-muted-foreground">{r.contaminationStatus}</span>
+                        </span>
                       }
                     />
 
@@ -305,8 +308,7 @@ export function ReportsPage() {
                       }
                     />
                   </TableRow>
-                )
-              })}
+              ))}
               {sorted.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="py-8 text-center text-xs text-muted-foreground">
@@ -361,8 +363,9 @@ function ReportCell({
     <TableCell className={cn(td, "align-top whitespace-nowrap", className)} onClick={(e) => e.stopPropagation()}>
       {onView ? (
         <>
-          {headline}
-          <Button variant="outline" size="xs" className="mt-1 bg-card" onClick={onView}>
+          {/* Its own block, or an inline headline such as the hygiene badge keeps the button beside it */}
+          <div>{headline}</div>
+          <Button variant="outline" size="xs" className="mt-1.5 bg-card" onClick={onView}>
             <Eye className="size-3" /> View Report
           </Button>
         </>
