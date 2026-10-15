@@ -13,9 +13,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { PageHeader } from "@/components/common/page-header"
-import { AssetIllustration, ClearButton, HealthGauge } from "@/components/tasks/add-task-parts"
+import { AssetIllustration, ClearButton, HealthGauge, InspectedAssetPicker, type InspectedAsset } from "@/components/tasks/add-task-parts"
 import { assetRegister, departments, findAsset, type AssetRecord } from "@/data/assets"
 import { plants } from "@/data/dashboard"
+import { useInspectionDetails, useInspectionRows } from "@/data/inspection-store"
 import { assetCategories, crew } from "@/data/operations"
 import { addTask, useTaskRows } from "@/data/task-store"
 import type { TaskType } from "@/data/tasks"
@@ -76,6 +77,8 @@ type TaskForm = {
   tagId: string
   /** The asset Load Asset settled on; kept as its tag so a draft can reload it */
   loadedTag: string
+  /** The inspection the task follows up, picked through Asset Details */
+  inspectionId: string
   /* Filled by Load Asset, or typed in for an asset that is not in the register */
   assetName: string
   manufacturer: string
@@ -121,6 +124,7 @@ function blankForm(workOrder: string): TaskForm {
     category: "",
     tagId: "",
     loadedTag: "",
+    inspectionId: "",
     assetName: "",
     manufacturer: "",
     model: "",
@@ -228,6 +232,62 @@ export function AddTaskPage() {
 
   const asset: AssetRecord | undefined = form.loadedTag ? findAsset(form.loadedTag) : undefined
 
+  const inspectionRows = useInspectionRows()
+  const inspectionDetails = useInspectionDetails()
+
+  /**
+   * What the Asset Details picker offers: assets with a completed inspection on or
+   * before today, newest first, each carrying the inspection it came from.
+   */
+  const inspectedAssets = useMemo<InspectedAsset[]>(() => {
+    const today = new Date()
+    const classified = { Healthy: "healthy", Attention: "attention", Critical: "critical" } as const
+    return inspectionRows
+      .map((r) => ({ r, on: parse(r.due, "dd-MM-yyyy", new Date()) }))
+      .filter(({ r, on }) => r.status === "completed" && on <= today)
+      .sort((a, b) => b.on.getTime() - a.on.getTime())
+      .map(({ r }) => {
+        const detail = inspectionDetails[r.id]
+        const result = detail?.result
+        return {
+          tagId: detail?.assetTag ?? r.id,
+          asset: r.asset,
+          plant: r.plant,
+          department: detail?.area ?? "",
+          // Inspection assets are named "<Category> - <Unit>", so the category leads the name
+          category: r.asset.split(" - ")[0],
+          inspectionId: r.id,
+          inspectedOn: r.due,
+          activity: r.activity,
+          health: result ? classified[result.classification] : undefined,
+        }
+      })
+  }, [inspectionRows, inspectionDetails])
+
+  /** Fill the asset from its latest inspection, and link the task to that inspection */
+  function pickInspected(picked?: InspectedAsset) {
+    if (!picked) {
+      set("inspectionId", "")
+      return
+    }
+    setForm((f) => ({
+      ...f,
+      inspectionId: picked.inspectionId,
+      tagId: picked.tagId,
+      // Only an asset in the register has a summary to show
+      loadedTag: findAsset(picked.tagId) ? picked.tagId : "",
+      plant: picked.plant,
+      department: picked.department in departments ? picked.department : "",
+      subDepartment: "",
+      category: picked.category,
+      assetName: picked.asset,
+      manufacturer: "",
+      model: "",
+      serial: "",
+      health: picked.health ?? f.health,
+    }))
+  }
+
   const set = <K extends keyof TaskForm>(key: K, value: TaskForm[K]) => setForm((f) => ({ ...f, [key]: value }))
   const patch = <K extends "cleaning" | "post" | "fire" | "pd">(key: K, value: Partial<TaskForm[K]>) =>
     setForm((f) => ({ ...f, [key]: { ...f[key], ...value } }))
@@ -256,6 +316,7 @@ export function AddTaskPage() {
       ...f,
       tagId: found.tagId,
       loadedTag: found.tagId,
+      inspectionId: "",
       plant: found.plant,
       department: found.department,
       subDepartment: found.subDepartment,
@@ -275,7 +336,7 @@ export function AddTaskPage() {
     !form.assetName.trim() && "Asset name (load an asset or type it in)",
     !form.plannedDate && "Planned date",
     !form.startTime && "Start time",
-    !form.performedBy && "Performed by (ELPREMAR)",
+    !form.performedBy && "Assign To (ELPREMAR)",
     !form.kinds.length && "Maintenance type",
     !form.fluids.length && "INSTA fluid used",
     !form.quantity && "Quantity used",
@@ -313,9 +374,12 @@ export function AddTaskPage() {
         // Booked intervals run 09:00-18:00, so an out-of-hours start files at the nearest one
         slot: Math.min(17, Math.max(9, hour)),
         status: "open",
+        inspectionId: form.inspectionId || undefined,
       },
       {
-        description: form.notes || `${form.kinds.join(", ")} on ${form.assetName.trim()} using ${form.fluids.join(", ")}.`,
+        description:
+          form.notes ||
+          `${form.inspectionId ? `Follow-up to inspection ${form.inspectionId}. ` : ""}${form.kinds.join(", ")} on ${form.assetName.trim()} using ${form.fluids.join(", ")}.`,
         createdBy: user?.name ?? "Enterprise Admin",
         area: [form.department, form.subDepartment].filter(Boolean).join(" · ") || "Not recorded",
         assetTag: form.tagId.trim() || "Not tagged",
@@ -382,7 +446,7 @@ export function AddTaskPage() {
 
         <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-5">
           <Field label="Plant">
-            <Choice value={form.plant} onChange={(v) => setForm((f) => ({ ...f, plant: v, tagId: "", loadedTag: "" }))} options={plants.map((p) => p.name)} />
+            <Choice value={form.plant} onChange={(v) => setForm((f) => ({ ...f, plant: v, tagId: "", loadedTag: "", inspectionId: "" }))} options={plants.map((p) => p.name)} />
           </Field>
           <Field label="Department">
             {/* A new department has its own sub-departments, so the old pick is cleared */}
@@ -490,7 +554,16 @@ export function AddTaskPage() {
               </div>
             ) : (
               <p className="py-6 text-center text-xs text-muted-foreground">
-                Select an asset above and press <span className="font-semibold text-foreground">Load Asset</span> to see its details here.
+                {form.inspectionId ? (
+                  <>
+                    <span className="font-semibold text-foreground">{form.assetName}</span> is linked through inspection{" "}
+                    <span className="font-semibold text-foreground">{form.inspectionId}</span>; it is not in the asset register, so there is no summary to show.
+                  </>
+                ) : (
+                  <>
+                    Select an asset above and press <span className="font-semibold text-foreground">Load Asset</span> to see its details here.
+                  </>
+                )}
               </p>
             )}
           </section>
@@ -530,6 +603,26 @@ export function AddTaskPage() {
               {step === "details" ? (
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem]">
                   <Panel title="Maintenance Activity Information">
+                    <div className="mb-3 grid gap-3 sm:grid-cols-2">
+                      <Field label="Asset Details">
+                        <InspectedAssetPicker options={inspectedAssets} value={form.inspectionId} onChange={pickInspected} />
+                      </Field>
+                      <Field label="Linked Inspection">
+                        <p className="flex h-8 items-center text-xs">
+                          {form.inspectionId ? (
+                            <span>
+                              <span className="font-semibold tabular-nums">{form.inspectionId}</span>
+                              <span className="text-muted-foreground">
+                                {" "}· {inspectedAssets.find((a) => a.inspectionId === form.inspectionId)?.activity} on{" "}
+                                {inspectedAssets.find((a) => a.inspectionId === form.inspectionId)?.inspectedOn}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">None — pick an asset to link its latest inspection</span>
+                          )}
+                        </p>
+                      </Field>
+                    </div>
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <Field label="Planned Date" required>
                         <Input type="date" value={form.plannedDate} onChange={(e) => set("plannedDate", e.target.value)} className={control} />
@@ -540,7 +633,7 @@ export function AddTaskPage() {
                       <Field label="End Time (Real Time)">
                         <TimeInput value={form.endTime} onChange={(v) => set("endTime", v)} />
                       </Field>
-                      <Field label="Performed By" required>
+                      <Field label="Assign To" required>
                         <Choice value={form.performedBy} onChange={(v) => set("performedBy", v)} options={crew} placeholder="Select ELPREMAR" />
                       </Field>
                     </div>
@@ -775,6 +868,7 @@ function Review({
       title: "Asset",
       step: "details",
       rows: [
+        ["Linked Inspection", form.inspectionId || "—"],
         ["Asset", form.assetName ? `${form.assetName}${form.tagId ? ` (${form.tagId})` : ""}${asset ? "" : " · not in register"}` : "—"],
         ["Manufacturer / Model", [form.manufacturer, form.model].filter(Boolean).join(" · ") || "—"],
         ["Serial Number", form.serial || "—"],
@@ -787,7 +881,7 @@ function Review({
       step: "details",
       rows: [
         ["Planned", `${toDisplay(form.plannedDate) || "—"} ${form.startTime}${form.endTime ? ` – ${form.endTime}` : ""}`],
-        ["Performed By", form.performedBy || "—"],
+        ["Assign To", form.performedBy || "—"],
         ["Maintenance Type", form.kinds.join(", ") || "—"],
         ["Mode", form.mode === "online" ? "Online (In-Service)" : "Offline (Out of Service)"],
         ["Work Order", form.workOrder],
