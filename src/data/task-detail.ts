@@ -151,7 +151,7 @@ export function taskDetail(row: TaskRow): TaskDetail {
   }
 
   // The two add-on activities only apply to some jobs, which is what "Not performed" is for
-  if (row.type === "Fire Preventive" || random() < 0.2)
+  if (row.type === "Fire Preventive Maintenance" || random() < 0.2)
     detail.firePrevention = {
       system: pick(fireSystems),
       remarks: "Installed and function-tested; tamper seal intact.",
