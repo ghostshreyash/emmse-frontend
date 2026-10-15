@@ -30,13 +30,31 @@ Designs follow `docs/EVITA_WORKFLOW.pdf`, pages 30–36.
 | `/tasks` → `/tasks/add` → `/tasks/:id` | Tasks: the enterprise's maintenance activities, added and viewed | Built |
 | `/inspection-activities` → `/add` → `/:id` | Inspections: the inspection queue across the enterprise's plants | Built |
 | `/reports` → `/reports/:assetId` | Reports & Analytics: the contamination, hygiene and cleaning report per asset | Built |
+| `/support-tickets` → `/support-tickets/:id` | Support Tickets, and Report an Issue | Built |
 | `/profile` | The signed-in administrator's own profile | Built |
 | Other sidebar sections | Asset Management, Users & Access, Settings and the rest | Placeholder |
 
 Every screen under the shell carries the help assistant, bottom right. It
 answers from the client's `Olivine_APP_AI_Chatbot_FAQ_` sheet - the 99 rows
 marked for EMMS-E - and from nothing else; there is no model behind it. See
-`src/lib/help-bot.ts` for the matching and `src/data/faq.ts` for the rows.
+`src/lib/help-bot.ts` for the matching and `src/data/faq.ts` for the rows. When
+it has no approved answer it offers Report an Issue, which is the client's own
+rule: a ticket is the escalation path for what the chatbot cannot resolve.
+
+### Support tickets
+
+One ticket model covers all three products. The client settled that every
+enterprise-to-OCC message is a ticket - "a request or a complaint" - and that
+EVITA raises none, since an ELPREMAR has the chatbot instead. So Report an
+Issue lives here, with the same fields as EVITA's dialog and OCC's raise
+screen, and OCC's console is the receiving end.
+
+What differs is the surface, not the ticket. EVITA shows a card per issue and
+folds the desk's three states into Pending / Completed, because on a tablet the
+thing being read is a short story. EMMS-E is a desk portal, so tickets are a
+table like Tasks, Inspections and Reports, and the status column reads the
+desk's own Open / In Progress / Closed - an administrator chasing a ticket
+wants to know whether anybody has picked it up.
 
 ### Reports
 

@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react"
-import { Bot, MessageCircle, Send, X } from "lucide-react"
+import { useNavigate } from "react-router"
+import { Bot, MessageCircle, Send, Ticket, TriangleAlert, X } from "lucide-react"
 
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Message, MessageContent, MessageFooter, MessageGroup } from "@/components/ui/message"
+import { ReportIssueDialog } from "@/components/common/report-issue-dialog"
 import type { FaqEntry } from "@/data/faq"
 import type { BotReply } from "@/lib/help-bot"
 
@@ -28,10 +30,11 @@ import type { BotReply } from "@/lib/help-bot"
  * launcher is on every screen, so the matcher is fetched on the first opening
  * rather than with the app. The pause before the first reply covers the fetch.
  *
- * Ported from EVITA's `components/evita/help-bot.tsx`. EVITA hands a dead end
- * off to its Report an Issue panel and its Contact screen; EMMS-E has neither
- * yet, so the dead end offers the sheet's own row for it instead - see
- * `nowhere` in lib/help-bot - and sends nobody to an unbuilt screen.
+ * Ported from EVITA's `components/evita/help-bot.tsx`, including the dead end:
+ * when nothing matches, the sheet's own row for it is offered - which answers
+ * "raise a ticket" - and so are the two ways to do that. The client's rule is
+ * that tickets are the escalation path for exactly what the chatbot cannot
+ * resolve, so this bubble is where a ticket most often starts.
  */
 
 type Turn = {
@@ -73,7 +76,9 @@ const beat = 420
 const pause = () => new Promise<void>((resolve) => window.setTimeout(resolve, beat))
 
 export function HelpBot() {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
+  const [raising, setRaising] = useState(false)
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState("")
   const [thinking, setThinking] = useState(false)
@@ -135,17 +140,32 @@ export function HelpBot() {
     })
   }
 
+  /** Hand it to the people who can act on it, and get out of the way */
+  function handOff(to: "ticket" | "list") {
+    setOpen(false)
+    if (to === "ticket") setRaising(true)
+    else navigate("/support-tickets")
+  }
+
+  /*
+   * The launcher and the panel are the two faces of the same thing, and the
+   * dialog sits beside both: handing off closes the bubble, so a dialog rendered
+   * inside the panel would unmount on the way to being opened.
+   */
   if (!open) {
     return (
-      <Button
-        type="button"
-        size="icon-lg"
-        aria-label="Open the help assistant"
-        onClick={openBot}
-        className="fixed right-4 bottom-4 z-40 size-12 rounded-full shadow-lg shadow-primary/30"
-      >
-        <MessageCircle className="size-5" />
-      </Button>
+      <>
+        <Button
+          type="button"
+          size="icon-lg"
+          aria-label="Open the help assistant"
+          onClick={openBot}
+          className="fixed right-4 bottom-4 z-40 size-12 rounded-full shadow-lg shadow-primary/30"
+        >
+          <MessageCircle className="size-5" />
+        </Button>
+        <ReportIssueDialog open={raising} onOpenChange={setRaising} />
+      </>
     )
   }
 
@@ -198,7 +218,9 @@ export function HelpBot() {
                 ) : null}
 
                 {/* Only the last reply offers follow-ups; older ones would answer a question that moved on */}
-                {at === turns.length - 1 && !thinking ? <Suggestions turn={turn} onAsk={ask} /> : null}
+                {at === turns.length - 1 && !thinking ? (
+                  <Suggestions turn={turn} onAsk={ask} onHandOff={handOff} />
+                ) : null}
               </MessageContent>
             </Message>
           ))}
@@ -269,15 +291,25 @@ function BotFace() {
  * What to ask next. Suggested questions are sent as their own exact wording, so
  * the matcher returns that row and never a near miss of it.
  */
-function Suggestions({ turn, onAsk }: { turn: Turn; onAsk: (question: string) => void }) {
+function Suggestions({
+  turn,
+  onAsk,
+  onHandOff,
+}: {
+  turn: Turn
+  onAsk: (question: string) => void
+  onHandOff: (to: "ticket" | "list") => void
+}) {
   const questions = turn.suggestions ?? []
-  if (!questions.length) return null
+  if (!questions.length && !turn.stuck) return null
 
   return (
     <div className="flex flex-col items-start gap-1.5 pt-0.5">
-      <span className="px-1 text-[0.65rem] font-medium text-muted-foreground">
-        {turn.stuck ? "Closest I have" : "Also asked"}
-      </span>
+      {questions.length ? (
+        <span className="px-1 text-[0.65rem] font-medium text-muted-foreground">
+          {turn.stuck ? "Closest I have" : "Also asked"}
+        </span>
+      ) : null}
 
       {questions.map((question) => (
         <Button
@@ -291,6 +323,18 @@ function Suggestions({ turn, onAsk }: { turn: Turn; onAsk: (question: string) =>
           {question.question}
         </Button>
       ))}
+
+      {/* The sheet's own answer to a dead end is: raise a ticket. So offer it. */}
+      {turn.stuck ? (
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          <Button type="button" size="xs" onClick={() => onHandOff("ticket")}>
+            <TriangleAlert /> Report an Issue
+          </Button>
+          <Button type="button" variant="outline" size="xs" onClick={() => onHandOff("list")}>
+            <Ticket /> My tickets
+          </Button>
+        </div>
+      ) : null}
     </div>
   )
 }
