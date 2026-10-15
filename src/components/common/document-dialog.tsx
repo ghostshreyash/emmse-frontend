@@ -34,21 +34,24 @@ export type OpenDocument = {
  * that opens a document owns the state and passes it in.
  */
 export function DocumentDialog({ document, onClose }: { document: OpenDocument | null; onClose: () => void }) {
-  /* The frame fires `load` for a failed render too, so this only clears the spinner */
-  const [drawn, setDrawn] = useState(false)
+  /*
+   * Which file has drawn, rather than whether one has.
+   *
+   * The frame fires `load` for a failed render too, so this only clears the
+   * spinner. Holding the file name rather than a boolean means it corrects
+   * itself when a different report is opened: a flag set true by the first
+   * document stayed true for the second, which skipped the spinner and, worse,
+   * hid the "nothing showing" note for a frame that had not drawn at all. That
+   * shows up as soon as reports are opened one after another from the table.
+   */
+  const [drawnFile, setDrawnFile] = useState<string | null>(null)
 
   if (!document) return null
 
+  const drawn = drawnFile === document.file
+
   return (
-    <Dialog
-      open
-      onOpenChange={(open) => {
-        if (!open) {
-          setDrawn(false)
-          onClose()
-        }
-      }}
-    >
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
         /*
@@ -105,7 +108,7 @@ export function DocumentDialog({ document, onClose }: { document: OpenDocument |
             key={document.file}
             src={`${document.file}#view=FitH&navpanes=0`}
             title={document.title}
-            onLoad={() => setDrawn(true)}
+            onLoad={() => setDrawnFile(document.file)}
             className="size-full border-0"
           />
 
