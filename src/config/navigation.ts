@@ -38,7 +38,7 @@ export const sections = {
   tasks: { title: "Tasks", path: "/tasks", icon: Wrench },
   /** The original Tasks route, kept as its placeholder page; Tasks now lives at /tasks */
   maintenance: { title: "Maintenance Activities", path: "/maintenance-activities", icon: Wrench },
-  reports: { title: "Reports & Analytics", path: "/reports", icon: ChartColumn },
+  reports: { title: "Reports & Analytics", path: "/reports", icon: ChartColumn, covers: ["/reports/"] },
   inspections: { title: "Inspections", path: "/inspection-activities", icon: ClipboardCheck },
   /** The original Inspections route, kept as its placeholder page */
   inspectionsPlaceholder: { title: "Inspections", path: "/inspections", icon: ClipboardCheck },
@@ -58,8 +58,8 @@ export const navigation: NavItem[] = [
   sections.dashboard,
   sections.assets,
   sections.tasks,
-  // sections.reports,
   sections.inspections,
+  sections.reports,
   // sections.testing,
   // sections.reliability,
   // sections.safety,
