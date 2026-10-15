@@ -27,7 +27,29 @@ Designs follow `docs/EVITA_WORKFLOW.pdf`, pages 30–36.
 | `/register` | Request Access, for an enterprise that is not onboarded yet | Built |
 | `/account-recovery` | Recovery when the mobile and e-mail are both unreachable | Built |
 | `/` | Enterprise Dashboard (mockup page 31) | Built |
-| Other sidebar sections | Asset Management, Maintenance Activities, Reports & Analytics and the rest | Placeholder |
+| `/tasks` → `/tasks/add` → `/tasks/:id` | Tasks: the enterprise's maintenance activities, added and viewed | Built |
+| `/inspection-activities` → `/add` → `/:id` | Inspections: the inspection queue across the enterprise's plants | Built |
+| `/reports` → `/reports/:assetId` | Reports & Analytics: the contamination, hygiene and cleaning report per asset | Built |
+| `/profile` | The signed-in administrator's own profile | Built |
+| Other sidebar sections | Asset Management, Users & Access, Settings and the rest | Placeholder |
+
+Every screen under the shell carries the help assistant, bottom right. It
+answers from the client's `Olivine_APP_AI_Chatbot_FAQ_` sheet - the 99 rows
+marked for EMMS-E - and from nothing else; there is no model behind it. See
+`src/lib/help-bot.ts` for the matching and `src/data/faq.ts` for the rows.
+
+### Reports
+
+A report is never free-standing. An ELPREMAR inspects an asset in EVITA, which
+gives an Inspection ID and the contamination and hygiene readings that score
+the asset; that inspection raises the maintenance, which gives a Task ID and
+the before-and-after of the clean. So every row on `/reports` names the
+inspection it was read off and, once a clean has happened, the task that
+produced the cleaning report, and both link straight through.
+
+The three documents in `public/reports` are the client's own samples, carried
+across from EVITA, and stand in until the reporting service exists -
+`src/data/report-documents.ts` is the one place to swap them for real URLs.
 
 Demo sign-in: any password and any 6-digit code are accepted. `TSL-ENT-001` or `rahul.mehta@tatasteel.com` signs in as the enterprise admin; `kavita.iyer@tatasteel.com` as a plant maintenance supervisor, whose code goes by SMS.
 
@@ -35,6 +57,7 @@ Demo sign-in: any password and any 6-digit code are accepted. `TSL-ENT-001` or `
 
 - The asset table shows **Digital Asset ID** instead of "Asset Tag ID": the client confirmed the system-generated Digital Asset ID is the only asset identifier.
 - Health labels come from `src/lib/status.ts`, shared with OCC, which currently reads Healthy / Alarming / At Risk where the mockup says Healthy / Attention / Critical.
+- Inspection Type and Maintenance Type come from `src/data/master-data.ts`, worded as the parameter sheet words them. The sheet lists three maintenance types and no "Corrective" or "Emergency", so neither is offered anywhere.
 
 ## Where this came from
 
