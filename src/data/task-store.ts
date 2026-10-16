@@ -61,7 +61,7 @@ export function addTaskFromInspection(source: {
     {
       asset: source.asset,
       plant: source.plant,
-      type: "Condition-Based Maintenance",
+      type: "Preventive Maintenance",
       elpremar: source.elpremar,
       scheduled: source.scheduled,
       slot: source.slot,

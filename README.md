@@ -69,8 +69,11 @@ The three documents in `public/reports` are the client's own samples, carried
 across from EVITA, and stand in until the reporting service exists -
 `src/data/report-documents.ts` is the one place to swap them for real URLs.
 
-Above the table are the three trends from the mockup (page 34): Asset Health,
-Contamination Level and Maintenance Activity. The asset's own screen carries
+Above the table sit the activity totals - total maintenance, each programme,
+and total inspections - and under them the three trends from the mockup
+(page 34): Asset Health, Contamination Level and Maintenance Activity. The
+cards are the totals **of those charts**, summed series by series, so a card
+and the bars beside it cannot disagree. The asset's own screen carries
 the same three for that asset alone. In every one of them **the month we are in
 is real** - counted off the rows on screen, so the charts and the table cannot
 disagree and the filters move both - while the five months before it are a
@@ -84,7 +87,8 @@ Demo sign-in: any password and any 6-digit code are accepted. `TSL-ENT-001` or `
 
 - The asset table shows **Digital Asset ID** instead of "Asset Tag ID": the client confirmed the system-generated Digital Asset ID is the only asset identifier.
 - Health labels come from `src/lib/status.ts`, shared with OCC, which currently reads Healthy / Alarming / At Risk where the mockup says Healthy / Attention / Critical.
-- Inspection Type and Maintenance Type come from `src/data/master-data.ts`, worded as the parameter sheet words them. The sheet lists three maintenance types and no "Corrective" or "Emergency", so neither is offered anywhere.
+- Inspection Type and Maintenance Type come from `src/data/master-data.ts`, worded as the parameter sheet words them. The sheet lists no "Corrective" or "Emergency", so neither is offered anywhere.
+- **Condition-Based Maintenance is not offered either**, on the client's instruction - they do not run it as a programme - which leaves Preventive and Fire Preventive. That is a departure from the sheet, which still lists all three. Restoring the entry in `maintenanceTypes` brings it back to the Tasks dropdown, the dashboard chart and the Reports trend together.
 
 ## Where this came from
 

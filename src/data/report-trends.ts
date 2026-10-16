@@ -207,3 +207,46 @@ export function assetMaintenanceTrend(row: ReportRow, months = trendMonths()): M
     return out
   })
 }
+
+/* ---------- Activity totals ---------- */
+
+/**
+ * What the KPI cards count, over the same six months the charts cover - they
+ * are the totals **of those charts**, summed series by series, so a card can
+ * never disagree with the bars drawn beside it.
+ */
+export type ActivityTotals = {
+  /** Every maintenance job, whatever its type */
+  maintenance: number
+  preventive: number
+  firePreventive: number
+  inspections: number
+}
+
+/**
+ * How many inspections fall in the window for an asset on a given cycle.
+ *
+ * An asset inspected every three months has had two in six; one on a yearly
+ * cycle has had the one. Never zero - a row only reaches this screen because it
+ * has been inspected at least once.
+ */
+export const inspectionsInWindow = (frequency: number, months = TREND_MONTHS) =>
+  Math.max(1, Math.round(months / frequency))
+
+/** The whole estate's inspections over the window, asset by asset */
+export const estateInspections = (rows: ReportRow[]) =>
+  rows.reduce((n, row) => n + inspectionsInWindow(row.frequency), 0)
+
+/** Sum a maintenance trend into its totals, and carry the inspection count beside it */
+export function activityTotals(months: MaintenanceMonth[], inspections: number): ActivityTotals {
+  const sum = (key: (typeof maintenanceMix)[number]["key"]) => months.reduce((n, m) => n + m[key], 0)
+  const preventive = sum("preventive")
+  const firePreventive = sum("firePreventive")
+
+  return {
+    maintenance: preventive + firePreventive,
+    preventive,
+    firePreventive,
+    inspections,
+  }
+}

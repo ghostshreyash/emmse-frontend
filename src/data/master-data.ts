@@ -28,10 +28,14 @@ export const dialCodes = [
  * (`docs/PARAMETERS.md`, "Work") and worded exactly as occ-frontend's own
  * `master-data.ts` words them, so the two never drift.
  *
- * The sheet lists three maintenance types and no "Corrective" or "Emergency":
- * the screens here used to carry both, plus a third spelling on the Add Task
- * form, which is why every type on every EMMS-E screen now reads from these
- * two lists and nothing declares its own.
+ * The sheet lists three maintenance types and no "Corrective" or "Emergency",
+ * which is why every type on every EMMS-E screen reads from these two lists and
+ * nothing declares its own.
+ *
+ * **Condition-Based Maintenance is left out**, on the client's instruction -
+ * they do not run it as a programme. That is a deliberate departure from the
+ * sheet, which still lists it; put the entry back here and it returns to the
+ * Tasks dropdown, the dashboard chart and the Reports trend together.
  */
 export const inspectionTypes = [
   "Visual Inspection",
@@ -44,7 +48,6 @@ export type InspectionType = (typeof inspectionTypes)[number]
 
 export const maintenanceTypes = [
   "Preventive Maintenance",
-  "Condition-Based Maintenance",
   "Fire Preventive Maintenance",
 ] as const
 

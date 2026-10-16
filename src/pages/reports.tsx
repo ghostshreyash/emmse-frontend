@@ -5,6 +5,7 @@ import { cn } from "cn"
 
 import { SortHead, TablePager } from "@/components/common/data-table"
 import { DocumentDialog, type OpenDocument } from "@/components/common/document-dialog"
+import { ActivityTotalCards } from "@/components/common/activity-totals"
 import { PageHeader } from "@/components/common/page-header"
 import { ContaminationTrend, HealthTrend, MaintenanceTrend } from "@/components/common/trend-charts"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +17,7 @@ import { plants } from "@/data/dashboard"
 import { healthBandFor } from "@/data/master-data"
 import { criticalityTone } from "@/data/operations"
 import { reportDocuments, type ReportKind } from "@/data/report-documents"
-import { contaminationTrend, healthTrend, maintenanceTrend } from "@/data/report-trends"
+import { activityTotals, contaminationTrend, estateInspections, healthTrend, maintenanceTrend } from "@/data/report-trends"
 import { findingLook, findings, reportRows, type Finding, type ReportRow } from "@/data/reports"
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
@@ -148,6 +149,12 @@ export function ReportsPage() {
     [filtered]
   )
 
+  /* The cards are the totals of the maintenance chart, so the two always agree */
+  const totals = useMemo(
+    () => activityTotals(trends.maintenance, estateInspections(filtered)),
+    [trends.maintenance, filtered]
+  )
+
   const pages = Math.max(1, Math.ceil(sorted.length / pageSize))
   // Narrowing the results can strand the viewer past the last page, so clamp on read
   const current = Math.min(page, pages)
@@ -191,6 +198,9 @@ export function ReportsPage() {
           </>
         }
       />
+
+      {/* What was carried out, then the three trends — both over whatever the filters have narrowed to */}
+      <ActivityTotalCards totals={totals} />
 
       {/* The three trends from the mockup, over whatever the filters have narrowed to */}
       <div className="mb-4 grid gap-3 xl:grid-cols-3">

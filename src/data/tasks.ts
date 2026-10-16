@@ -11,10 +11,9 @@ import { assetCategories, crew, day, daySlots, seeded, units } from "@/data/oper
 import type { WorkStatus } from "@/lib/status"
 
 /**
- * The maintenance programmes a task can belong to: the parameter sheet's
- * Maintenance Type, in the sheet's own wording. The screens used to shorten
- * these ("Preventive", "Condition-Based") and to carry a "Corrective" type the
- * sheet does not list — both are gone, and every type now comes from this list.
+ * The maintenance programmes a task can belong to, in the parameter sheet's own
+ * wording — see `maintenanceTypes`, which is the one place the list is kept and
+ * the one place to change it.
  */
 export const taskTypes = maintenanceTypes
 export type TaskType = MaintenanceType
