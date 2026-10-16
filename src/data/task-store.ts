@@ -47,6 +47,8 @@ export function addTask(row: Omit<TaskRow, "id">, detail: Partial<TaskDetail>) {
  */
 export function addTaskFromInspection(source: {
   inspectionId: string
+  /** The register asset the inspection looked at */
+  assetTag: string
   activity: string
   plant: string
   asset: string
@@ -67,6 +69,7 @@ export function addTaskFromInspection(source: {
       slot: source.slot,
       status: "assigned",
       inspectionId: source.inspectionId,
+      assetTag: source.assetTag,
     },
     {
       description: `Raised from inspection ${source.inspectionId} (${source.activity}). ${source.recommendation}`,
