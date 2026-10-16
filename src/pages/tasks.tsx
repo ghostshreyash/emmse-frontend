@@ -3,9 +3,11 @@ import { Link, useNavigate } from "react-router"
 import type { DateRange } from "react-day-picker"
 import { isAfter, isBefore, parse, startOfDay } from "date-fns"
 import { FileText, Plus, Search, Sheet, X } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "cn"
 
 import { DateRangeFilter, SortHead, TablePager } from "@/components/common/data-table"
+import { ConfirmDelete, DeleteRowButton } from "@/components/common/confirm-delete"
 import { PageHeader } from "@/components/common/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { plants } from "@/data/dashboard"
 import { slotLabel } from "@/data/operations"
-import { useTaskRows } from "@/data/task-store"
+import { deleteTask, useTaskRows } from "@/data/task-store"
 import { taskStatuses, type TaskRow } from "@/data/tasks"
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
@@ -63,6 +65,8 @@ export function TasksPage() {
   const rows = useTaskRows()
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<WorkStatus | "all">("all")
+  /** The Open task waiting on a delete confirmation */
+  const [deleting, setDeleting] = useState<TaskRow | null>(null)
   const [plant, setPlant] = useState("all")
   const [range, setRange] = useState<DateRange | undefined>()
   const [sort, setSort] = useState<Sort<SortKey>>(null)
@@ -195,8 +199,14 @@ export function TasksPage() {
                     {r.scheduled}
                     <span className="block text-[0.65rem] text-muted-foreground">{slotLabel(r.slot)}</span>
                   </TableCell>
-                  <TableCell className={td}>
-                    <Badge variant={look(r.status).badge} className="rounded px-1.5 py-0 text-[0.65rem]">{look(r.status).label}</Badge>
+                  <TableCell className={td} onClick={(e) => r.status === "open" && e.stopPropagation()}>
+                    <span className="flex items-center gap-1.5">
+                      <Badge variant={look(r.status).badge} className="rounded px-1.5 py-0 text-[0.65rem]">{look(r.status).label}</Badge>
+                      {/* Only a task that has not started can be deleted */}
+                      {r.status === "open" ? (
+                        <DeleteRowButton id={r.id} onClick={() => setDeleting(r)} />
+                      ) : null}
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}
@@ -221,6 +231,16 @@ export function TasksPage() {
           />
         </div>
       </section>
+
+      <ConfirmDelete
+        id={deleting?.id}
+        summary={deleting ? `${deleting.type} on ${deleting.asset}, ${deleting.plant}, scheduled ${deleting.scheduled}` : undefined}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting && deleteTask(deleting.id)) toast.success(`${deleting.id} deleted`)
+          setDeleting(null)
+        }}
+      />
     </div>
   )
 }

@@ -43,7 +43,7 @@ const descriptionsByCategory: Record<TicketCategory, string> = {
   Asset: "The asset record does not match what is physically on site. A photograph of the nameplate is attached for comparison.",
   Inspection: "An inspection has come back incomplete, so it cannot be relied on to raise the maintenance that follows from it.",
   "Testing & Measurement": "A measurement instrument is not reporting correctly, so the readings cannot be trusted or recorded.",
-  Maintenance: "A maintenance activity is not moving through its expected states, so it cannot be closed out.",
+  Maintenance: "A maintenance task is not moving through its expected states, so it cannot be closed out.",
   Report: "A report is not producing the expected output. The period and filters that were used are noted below.",
   Access: "A user needs their access adjusted so they can carry out their role on the platform.",
   "Data/Sync": "Records captured in the field have not come back to the platform, so the latest readings are missing here.",

@@ -6,7 +6,7 @@
  */
 import { plants } from "@/data/dashboard"
 import { inspections, type InspectionRow } from "@/data/inspections"
-import { maintenanceTypes, type MaintenanceType } from "@/data/master-data"
+import type { MaintenanceType } from "@/data/master-data"
 import { crew, day, daySlots, seeded } from "@/data/operations"
 import type { WorkStatus } from "@/lib/status"
 
@@ -15,16 +15,20 @@ import type { WorkStatus } from "@/lib/status"
  * Maintenance Type, in the sheet's own wording. The screens used to shorten
  * these ("Preventive", "Condition-Based") and to carry a "Corrective" type the
  * sheet does not list — both are gone, and every type now comes from this list.
+ *
+ * Maintenance tasks are Preventive or Fire Preventive only: Condition-Based
+ * Maintenance is not offered on tasks, by the client's instruction.
  */
-export const taskTypes = maintenanceTypes
-export type TaskType = MaintenanceType
+export const taskTypes = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const satisfies readonly MaintenanceType[]
+export type TaskType = (typeof taskTypes)[number]
 
-/** The mock book is raised already signed off, so none of it waits in "open" */
+/** Where tasks on the mock book stand; a few are still Open (raised, not started) */
 const workStates: WorkStatus[] = ["assigned", "in_progress", "completed"]
+const bookStates: WorkStatus[] = ["open", ...workStates]
 
 /**
- * Status filter options, in the order a task moves through them. "open" reads as
- * Pending For Approval: where a task added from the Add Task screen starts.
+ * Status filter options, in the order a task moves through them. "Open" is where
+ * a task added from the Add Maintenance Task screen starts.
  */
 export const taskStatuses: WorkStatus[] = ["open", ...workStates]
 
@@ -81,7 +85,7 @@ function generateTasks(count: number): TaskRow[] {
       elpremar,
       scheduled,
       slot,
-      status: pick(workStates),
+      status: pick(bookStates),
       inspectionId: source.id,
     })
   }

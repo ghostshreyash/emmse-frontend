@@ -232,7 +232,7 @@ function Panel({ title, className, children, action }: { title: string; classNam
 /* ---------- Page ---------- */
 
 /**
- * Add Task: record a maintenance activity end to end — pick the asset, log the
+ * Add Task: record a maintenance task end to end — pick the asset, log the
  * cleaning with INSTA fluids, the post-cleaning readings and any fire prevention
  * or PD mitigation work, then submit it for approval. Built to the "Maintenance
  * Activities" mockup, named Tasks to match this app.
@@ -414,7 +414,7 @@ export function AddTaskPage() {
     } catch {
       // Nothing to clear in a browser without storage
     }
-    toast.success(`Maintenance task ${id} submitted for approval`, { description: `${form.assetName.trim()} · ${form.plant}` })
+    toast.success(`Maintenance task ${id} created`, { description: `${form.assetName.trim()} · ${form.plant}` })
     navigate(`/tasks/${id}`)
   }
 

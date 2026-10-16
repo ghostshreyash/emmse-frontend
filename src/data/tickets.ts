@@ -90,7 +90,7 @@ const subjectsByCategory: Record<TicketCategory, string[]> = {
   Asset: ["Asset QR code not scanning", "Correct the panel rating on record", "Duplicate asset record created"],
   Inspection: ["Inspection submitted without the thermal images", "Inspection checklist missing a step", "Re-inspection not raised after a failed point"],
   "Testing & Measurement": ["PD meter not pairing over Bluetooth", "IR test values not saving", "Measurement unit shown incorrectly"],
-  Maintenance: ["Maintenance activity stuck in progress", "INSTA CLEAN consumables not recorded", "Cannot close out completed maintenance"],
+  Maintenance: ["Maintenance task stuck in progress", "INSTA CLEAN consumables not recorded", "Cannot close out completed maintenance"],
   Report: ["Health report PDF not downloading", "Report shows last month's figures", "Add a plant summary to the export"],
   Access: ["User access request for the plant head", "Reset the login for a new supervisor", "Role change for a maintenance supervisor"],
   "Data/Sync": ["Field records not syncing back", "Duplicate readings after a sync", "Sync stuck at 80 percent"],

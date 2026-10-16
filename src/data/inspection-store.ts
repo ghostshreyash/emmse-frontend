@@ -23,6 +23,18 @@ export const useInspectionDetails = () => useSyncExternalStore(subscribe, () => 
 
 export const findInspection = (id?: string) => (id ? rows.find((r) => r.id === id) : undefined)
 
+/** Delete an inspection that has not started; anything further along is kept */
+export function deleteInspection(id: string) {
+  const row = rows.find((r) => r.id === id)
+  if (!row || row.status !== "pending") return false
+  rows = rows.filter((r) => r.id !== id)
+  const rest = { ...details }
+  delete rest[id]
+  details = rest
+  listeners.forEach((listener) => listener())
+  return true
+}
+
 export function updateInspection(id: string, patch: Partial<InspectionRow>) {
   rows = rows.map((r) => (r.id === id ? { ...r, ...patch } : r))
   // A reassignment changes who the record says performed the work, until it is re-executed
