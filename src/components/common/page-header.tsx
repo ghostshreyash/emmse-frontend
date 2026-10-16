@@ -9,11 +9,14 @@ export function PageHeader({
   description,
   breadcrumbs,
   actions,
+  badge,
 }: {
   title: string
   description?: string
   breadcrumbs?: Crumb[]
   actions?: React.ReactNode
+  /** Sits beside the title - a reading about the thing the page is about */
+  badge?: React.ReactNode
 }) {
   return (
     <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
@@ -37,7 +40,10 @@ export function PageHeader({
             ))}
           </nav>
         ) : null}
-        <h2 className="text-lg font-bold text-brand-navy dark:text-foreground">{title}</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-lg font-bold text-brand-navy dark:text-foreground">{title}</h2>
+          {badge}
+        </div>
         {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-1.5">{actions}</div> : null}

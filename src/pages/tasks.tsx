@@ -107,17 +107,17 @@ export function TasksPage() {
   return (
     <div>
       <PageHeader
-        title="Tasks"
-        breadcrumbs={[{ label: "Tasks" }]}
+        title="Maintenance Tasks"
+        breadcrumbs={[{ label: "Maintenance Tasks" }]}
         actions={
           <>
             <Button size="sm" className={control} asChild>
-              <Link to="/tasks/add"><Plus className="size-3.5" /> Add Task</Link>
+              <Link to="/tasks/add"><Plus className="size-3.5" /> Add Maintenance Task</Link>
             </Button>
-            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportCsv("tasks", exportColumns, sorted)}>
+            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportCsv("maintenance-tasks", exportColumns, sorted)}>
               <Sheet className="size-3.5" /> Export CSV
             </Button>
-            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportPdf("Tasks", exportColumns, sorted)}>
+            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportPdf("Maintenance Tasks", exportColumns, sorted)}>
               <FileText className="size-3.5" /> Export PDF
             </Button>
           </>
@@ -203,7 +203,7 @@ export function TasksPage() {
               {sorted.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="py-8 text-center text-xs text-muted-foreground">
-                    No tasks match the filters.
+                    No maintenance tasks match the filters.
                   </TableCell>
                 </TableRow>
               ) : null}

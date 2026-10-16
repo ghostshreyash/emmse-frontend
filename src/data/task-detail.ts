@@ -17,10 +17,12 @@ import {
   type AssetCriticality,
   type Priority,
 } from "@/data/operations"
+import { findRegisteredAsset } from "@/data/assets"
 import type { TaskRow } from "@/data/tasks"
 
 /** An INSTA CLEAN consumable booked against the job */
-export type InstaProduct = { name: string; quantity: number; unit: string }
+/** Quantity and unit are absent where the screen that recorded it does not capture them */
+export type InstaProduct = { name: string; quantity?: number; unit?: string }
 
 
 export type MaintenanceReview = {
@@ -61,13 +63,8 @@ export type TaskDetail = {
   review?: MaintenanceReview
 }
 
-const products = [
-  { name: "INSTA CLEAN Contact Cleaner", unit: "ml" },
-  { name: "INSTA CLEAN Foam Spray", unit: "can" },
-  { name: "INSTA CLEAN Degreaser", unit: "L" },
-  { name: "INSTA SHIELD Insulation Coating", unit: "ml" },
-  { name: "INSTA DRY Moisture Absorber", unit: "kg" },
-]
+/** Share of tasks that use INSTA 50 (light contamination); the rest need INSTA 100 */
+const INSTA_50_SHARE = 0.8
 
 const fireSystems = [
   "Aerosol fire suppression module (panel-mounted)",
@@ -112,15 +109,17 @@ export function taskDetail(row: TaskRow): TaskDetail {
   const started = row.status !== "open" || true // every row in the mock has at least started
   const finished = row.status === "open" || row.status === "assigned" || row.status === "completed" || row.status === "rejected"
 
+  const registered = row.assetTag ? findRegisteredAsset(row.assetTag) : undefined
   const detail: TaskDetail = {
     priority: pick(priorities),
     description: pick(descriptions),
     createdBy: `${pick(supervisors)} (OCC)`,
-    area: pick(areas),
-    assetTag: `TAG-${row.plant.slice(0, 3).toUpperCase()}-${row.id.slice(-4)}`,
-    assetCategory: pick(assetCategories),
-    assetCriticality: pick(assetCriticality),
-    commissionedOn: commissionDate(random),
+    // Read off the register asset worked on, so both screens describe the same kit
+    area: registered?.area ?? pick(areas),
+    assetTag: row.assetTag ?? `TAG-${row.plant.slice(0, 3).toUpperCase()}-${row.id.slice(-4)}`,
+    assetCategory: registered?.category ?? pick(assetCategories),
+    assetCriticality: registered?.criticality ?? pick(assetCriticality),
+    commissionedOn: registered?.commissionedOn ?? commissionDate(random),
     products: [],
     evidence: [],
   }
@@ -136,18 +135,8 @@ export function taskDetail(row: TaskRow): TaskDetail {
       notes: pick(notes),
     }
 
-    const count = 1 + Math.floor(random() * 3)
-    const used = new Set<string>()
-    for (let i = 0; i < count; i++) {
-      const p = pick(products)
-      if (used.has(p.name)) continue
-      used.add(p.name)
-      detail.products.push({
-        name: p.name,
-        quantity: p.unit === "kg" ? Number((0.2 + random()).toFixed(1)) : Math.ceil(random() * 6) * (p.unit === "ml" ? 50 : 1),
-        unit: p.unit,
-      })
-    }
+    // Most panels only carry light contamination, so INSTA 50 is the usual fluid
+    detail.products.push({ name: random() < INSTA_50_SHARE ? "INSTA 50" : "INSTA 100" })
   }
 
   // The two add-on activities only apply to some jobs, which is what "Not performed" is for

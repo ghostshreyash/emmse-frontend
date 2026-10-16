@@ -114,6 +114,7 @@ export function InspectionDetailsPage() {
   const scheduleMaintenance = () => {
     const newId = addTaskFromInspection({
       inspectionId: activity.id,
+      assetTag: activity.assetTag,
       activity: activity.activity,
       plant: activity.plant,
       asset: activity.asset,
@@ -123,7 +124,7 @@ export function InspectionDetailsPage() {
       recommendation: result?.recommendedActions[0] ?? "Condition-based intervention recommended by inspection.",
       createdBy: user?.name ?? "Enterprise Admin",
     })
-    toast.success(`Task ${newId} raised`, {
+    toast.success(`Maintenance task ${newId} raised`, {
       description: `${activity.asset} · ${activity.plant}`,
     })
     navigate(`/tasks/${newId}`)

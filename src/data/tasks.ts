@@ -7,7 +7,7 @@
 import { plants } from "@/data/dashboard"
 import { inspections, type InspectionRow } from "@/data/inspections"
 import { maintenanceTypes, type MaintenanceType } from "@/data/master-data"
-import { assetCategories, crew, day, daySlots, seeded, units } from "@/data/operations"
+import { crew, day, daySlots, seeded } from "@/data/operations"
 import type { WorkStatus } from "@/lib/status"
 
 /**
@@ -41,15 +41,17 @@ export type TaskRow = {
   status: WorkStatus
   /** The inspection this work traces back to; absent on a task added directly */
   inspectionId?: string
+  /** The register asset worked on, so its history can be read back on the asset */
+  assetTag?: string
 }
 
 /**
  * Trace every task back to an inspection at the same plant, spread across that
  * plant's inspections rather than all pointing at the first one.
  */
-function inspectionAt(plant: string, n: number) {
+function inspectionAt(plant: string, n: number): InspectionRow {
   const pool: InspectionRow[] = inspections.filter((t) => t.plant === plant)
-  return (pool.length ? pool : inspections)[n % (pool.length || inspections.length)].id
+  return (pool.length ? pool : inspections)[n % (pool.length || inspections.length)]
 }
 
 function generateTasks(count: number): TaskRow[] {
@@ -68,16 +70,19 @@ function generateTasks(count: number): TaskRow[] {
       slot = daySlots[(daySlots.indexOf(slot) + 1) % daySlots.length]
     taken.add(`${elpremar}|${scheduled}|${slot}`)
 
+    // Maintenance follows an inspection, on the same asset that inspection looked at
+    const source = inspectionAt(plant, Math.floor(i / plants.length))
     rows.push({
       id: `MT-${2291 - i}`,
-      asset: `${pick(assetCategories)} - ${pick(units)}`,
+      asset: source.asset,
+      assetTag: source.assetTag,
       plant,
       type: pick(taskTypes),
       elpremar,
       scheduled,
       slot,
       status: pick(workStates),
-      inspectionId: inspectionAt(plant, Math.floor(i / plants.length)),
+      inspectionId: source.id,
     })
   }
   return rows
