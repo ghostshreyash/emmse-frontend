@@ -49,12 +49,21 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-3">
-      <PageHeader
-        title="Enterprise Dashboard"
-        description={plant ? plant.name : "All plants"}
-        breadcrumbs={[{ label: "Dashboard" }]}
-        actions={<PlantSelect value={scope} onChange={setScope} />}
-      />
+      {/*
+        * The title row and plant picker stay put while the rest scrolls under them.
+        * Sticks just below the 4rem top bar, and reaches out over the page gutter so
+        * cards scrolling past are hidden behind it rather than showing at the edges.
+        * z-[15]: above the cards' own layers (the donut and the Phase 2 overlays sit at
+        * z-10) and below the top bar (z-20).
+        */}
+      <div className="sticky top-16 z-[15] -mx-3 -mt-3 border-b border-foreground/10 bg-background px-3 pt-3 md:-mx-4 md:-mt-4 md:px-4 md:pt-4 [&>div]:mb-2">
+        <PageHeader
+          title="Enterprise Dashboard"
+          description={plant ? plant.name : "All plants"}
+          breadcrumbs={[{ label: "Dashboard" }]}
+          actions={<PlantSelect value={scope} onChange={setScope} />}
+        />
+      </div>
 
       {/* Beside the enterprise: every plant at a glance, or the picked plant's own card */}
       <div className="grid gap-3 lg:grid-cols-2">

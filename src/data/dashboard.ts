@@ -6,7 +6,8 @@
  * The dashboard shows either the whole enterprise ("all") or one plant. Each plant's
  * asset counts, departments and users add up to the enterprise figures.
  */
-import { maintenanceTypes, type MaintenanceType } from "@/data/master-data"
+import { maintenanceTypes } from "@/data/master-data"
+import type { TaskType } from "@/data/tasks"
 import type { HealthStatus } from "@/lib/status"
 
 /**
@@ -63,6 +64,13 @@ export const maintenanceMix = [
   { key: "firePreventive", label: maintenanceTypes[2], color: "var(--destructive)" },
 ] as const
 
+/**
+ * What the dashboard's Maintenance Task Trend chart draws: Preventive and Fire
+ * Preventive only. Condition-based work stays in the mix above, since tasks and the
+ * attention table still carry that type; it is just not charted.
+ */
+export const trendSeries = maintenanceMix.filter((t) => t.key !== "conditionBased")
+
 type MaintenanceKey = (typeof maintenanceMix)[number]["key"]
 export type MaintenanceMonth = { month: string } & Record<MaintenanceKey, number>
 
@@ -76,7 +84,8 @@ export type AttentionAsset = {
   /** Plant the asset belongs to (name) */
   plant: string
   scheduledOn: string
-  activityType: MaintenanceType
+  /** Preventive or Fire Preventive only, as on Maintenance Tasks */
+  maintenanceType: TaskType
 }
 
 export type Announcement = { title: string; date: string }
@@ -106,7 +115,7 @@ function kpis(c: { assets: number; healthy: number; attention: number; critical:
   }
 }
 
-/** Enterprise-wide maintenance activities closed per month, by type */
+/** Enterprise-wide maintenance tasks closed per month, by type */
 const enterpriseTrend: MaintenanceMonth[] = [
   { month: "May", preventive: 60, conditionBased: 26, firePreventive: 14 },
   { month: "Jun", preventive: 96, conditionBased: 44, firePreventive: 30 },
@@ -147,49 +156,49 @@ type PlantAsset = Omit<AttentionAsset, "plant">
 const plantDetails: Record<PlantId, Pick<DashboardData, "dataSync"> & { assetsRequiringAttention: PlantAsset[]; announcement: Announcement }> = {
   JSR: {
     assetsRequiringAttention: [
-      { id: "TSL-JSR-TRF-004", name: "33kV/11kV Transformer - T4", category: "Transformer", location: "Blast Furnace Substation", health: "critical", scheduledOn: "11-10-2026", activityType: "Condition-Based Maintenance" },
-      { id: "TSL-JSR-HTP-002", name: "HT Panel - Incomer 2", category: "HT Panel", location: "Main Receiving Station", health: "critical", scheduledOn: "13-10-2026", activityType: "Condition-Based Maintenance" },
-      { id: "TSL-JSR-MCC-007", name: "MCC - Rolling Mill 2", category: "MCC", location: "Hot Strip Mill", health: "attention", scheduledOn: "17-10-2026", activityType: "Condition-Based Maintenance" },
-      { id: "TSL-JSR-DB-012", name: "Distribution Board - Coke Plant", category: "Distribution Board", location: "Coke Plant", health: "attention", scheduledOn: "19-10-2026", activityType: "Preventive Maintenance" },
-      { id: "TSL-JSR-APF-002", name: "APFC Panel - 2", category: "APFC Panel", location: "Utility Area", health: "healthy", scheduledOn: "22-11-2026", activityType: "Fire Preventive Maintenance" },
+      { id: "TSL-JSR-TRF-004", name: "33kV/11kV Transformer - T4", category: "Transformer", location: "Blast Furnace Substation", health: "critical", scheduledOn: "11-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-JSR-HTP-002", name: "HT Panel - Incomer 2", category: "HT Panel", location: "Main Receiving Station", health: "critical", scheduledOn: "13-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-JSR-MCC-007", name: "MCC - Rolling Mill 2", category: "MCC", location: "Hot Strip Mill", health: "attention", scheduledOn: "17-10-2026", maintenanceType: "Fire Preventive Maintenance" },
+      { id: "TSL-JSR-DB-012", name: "Distribution Board - Coke Plant", category: "Distribution Board", location: "Coke Plant", health: "attention", scheduledOn: "19-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-JSR-APF-002", name: "APFC Panel - 2", category: "APFC Panel", location: "Utility Area", health: "healthy", scheduledOn: "22-11-2026", maintenanceType: "Fire Preventive Maintenance" },
     ],
     dataSync: { lastSynced: "09-10-2026 10:24", syncedBy: "TSL-JSR-ADM-01" },
     announcement: { title: "Scheduled maintenance shutdown - Blast Furnace G.", date: "29 Sep 2026" },
   },
   KLN: {
     assetsRequiringAttention: [
-      { id: "TSL-KLN-TRF-002", name: "11kV/415V Transformer - T2", category: "Transformer", location: "Pellet Plant Substation", health: "critical", scheduledOn: "12-10-2026", activityType: "Condition-Based Maintenance" },
-      { id: "TSL-KLN-HTP-003", name: "HT Panel - Bus Coupler", category: "HT Panel", location: "Main Substation", health: "attention", scheduledOn: "16-10-2026", activityType: "Preventive Maintenance" },
-      { id: "TSL-KLN-MCC-004", name: "MCC - Sinter Plant", category: "MCC", location: "Sinter Plant", health: "attention", scheduledOn: "18-10-2026", activityType: "Condition-Based Maintenance" },
-      { id: "TSL-KLN-APF-001", name: "APFC Panel - 1", category: "APFC Panel", location: "Utility Area", health: "healthy", scheduledOn: "25-11-2026", activityType: "Preventive Maintenance" },
+      { id: "TSL-KLN-TRF-002", name: "11kV/415V Transformer - T2", category: "Transformer", location: "Pellet Plant Substation", health: "critical", scheduledOn: "12-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-KLN-HTP-003", name: "HT Panel - Bus Coupler", category: "HT Panel", location: "Main Substation", health: "attention", scheduledOn: "16-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-KLN-MCC-004", name: "MCC - Sinter Plant", category: "MCC", location: "Sinter Plant", health: "attention", scheduledOn: "18-10-2026", maintenanceType: "Fire Preventive Maintenance" },
+      { id: "TSL-KLN-APF-001", name: "APFC Panel - 1", category: "APFC Panel", location: "Utility Area", health: "healthy", scheduledOn: "25-11-2026", maintenanceType: "Preventive Maintenance" },
     ],
     dataSync: { lastSynced: "09-10-2026 09:58", syncedBy: "TSL-KLN-ADM-01" },
     announcement: { title: "Scheduled maintenance shutdown - Pellet Plant.", date: "29 Sep 2026" },
   },
   MER: {
     assetsRequiringAttention: [
-      { id: "TSL-MER-TRF-001", name: "11kV/415V Transformer - T1", category: "Transformer", location: "Main Substation", health: "critical", scheduledOn: "14-10-2026", activityType: "Condition-Based Maintenance" },
-      { id: "TSL-MER-MCC-003", name: "MCC - Cold Rolling Mill", category: "MCC", location: "Cold Rolling Mill", health: "attention", scheduledOn: "15-10-2026", activityType: "Condition-Based Maintenance" },
-      { id: "TSL-MER-DB-005", name: "Distribution Board - Admin", category: "Distribution Board", location: "Admin Building", health: "attention", scheduledOn: "20-10-2026", activityType: "Preventive Maintenance" },
-      { id: "TSL-MER-HTP-001", name: "HT Panel - Incomer 1", category: "HT Panel", location: "Main Substation", health: "healthy", scheduledOn: "28-11-2026", activityType: "Preventive Maintenance" },
+      { id: "TSL-MER-TRF-001", name: "11kV/415V Transformer - T1", category: "Transformer", location: "Main Substation", health: "critical", scheduledOn: "14-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-MER-MCC-003", name: "MCC - Cold Rolling Mill", category: "MCC", location: "Cold Rolling Mill", health: "attention", scheduledOn: "15-10-2026", maintenanceType: "Fire Preventive Maintenance" },
+      { id: "TSL-MER-DB-005", name: "Distribution Board - Admin", category: "Distribution Board", location: "Admin Building", health: "attention", scheduledOn: "20-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-MER-HTP-001", name: "HT Panel - Incomer 1", category: "HT Panel", location: "Main Substation", health: "healthy", scheduledOn: "28-11-2026", maintenanceType: "Preventive Maintenance" },
     ],
     dataSync: { lastSynced: "09-10-2026 10:05", syncedBy: "TSL-MER-ADM-01" },
     announcement: { title: "Thermography survey planned for Cold Rolling Mill.", date: "30 Sep 2026" },
   },
   KHP: {
     assetsRequiringAttention: [
-      { id: "TSL-KHP-HTP-001", name: "HT Panel - Incomer 1", category: "HT Panel", location: "Main Substation", health: "critical", scheduledOn: "13-10-2026", activityType: "Preventive Maintenance" },
-      { id: "TSL-KHP-MCC-002", name: "MCC - Tube Mill", category: "MCC", location: "Tube Mill", health: "attention", scheduledOn: "18-10-2026", activityType: "Preventive Maintenance" },
-      { id: "TSL-KHP-TRF-001", name: "11kV/415V Transformer - T1", category: "Transformer", location: "Main Substation", health: "healthy", scheduledOn: "30-11-2026", activityType: "Preventive Maintenance" },
+      { id: "TSL-KHP-HTP-001", name: "HT Panel - Incomer 1", category: "HT Panel", location: "Main Substation", health: "critical", scheduledOn: "13-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-KHP-MCC-002", name: "MCC - Tube Mill", category: "MCC", location: "Tube Mill", health: "attention", scheduledOn: "18-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-KHP-TRF-001", name: "11kV/415V Transformer - T1", category: "Transformer", location: "Main Substation", health: "healthy", scheduledOn: "30-11-2026", maintenanceType: "Preventive Maintenance" },
     ],
     dataSync: { lastSynced: "09-10-2026 09:41", syncedBy: "TSL-KHP-ADM-01" },
     announcement: { title: "Earthing pit inspection drive this month.", date: "01 Oct 2026" },
   },
   SBD: {
     assetsRequiringAttention: [
-      { id: "TSL-SBD-TRF-002", name: "11kV/415V Transformer - T2", category: "Transformer", location: "Main Substation", health: "critical", scheduledOn: "15-10-2026", activityType: "Condition-Based Maintenance" },
-      { id: "TSL-SBD-DB-003", name: "Distribution Board - Stores", category: "Distribution Board", location: "Stores", health: "attention", scheduledOn: "21-10-2026", activityType: "Fire Preventive Maintenance" },
-      { id: "TSL-SBD-APF-001", name: "APFC Panel - 1", category: "APFC Panel", location: "Utility Area", health: "healthy", scheduledOn: "02-12-2026", activityType: "Preventive Maintenance" },
+      { id: "TSL-SBD-TRF-002", name: "11kV/415V Transformer - T2", category: "Transformer", location: "Main Substation", health: "critical", scheduledOn: "15-10-2026", maintenanceType: "Preventive Maintenance" },
+      { id: "TSL-SBD-DB-003", name: "Distribution Board - Stores", category: "Distribution Board", location: "Stores", health: "attention", scheduledOn: "21-10-2026", maintenanceType: "Fire Preventive Maintenance" },
+      { id: "TSL-SBD-APF-001", name: "APFC Panel - 1", category: "APFC Panel", location: "Utility Area", health: "healthy", scheduledOn: "02-12-2026", maintenanceType: "Preventive Maintenance" },
     ],
     dataSync: { lastSynced: "09-10-2026 09:30", syncedBy: "TSL-SBD-ADM-01" },
     announcement: { title: "Scheduled maintenance shutdown - Plant 2.", date: "29 Sep 2026" },

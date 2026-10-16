@@ -106,8 +106,9 @@ export function taskDetail(row: TaskRow): TaskDetail {
   }
   const pick = <T,>(pool: readonly T[]) => pool[Math.floor(random() * pool.length)]
 
-  const started = row.status !== "open" || true // every row in the mock has at least started
-  const finished = row.status === "open" || row.status === "assigned" || row.status === "completed" || row.status === "rejected"
+  // An Open task has been raised but not started, so it has nothing recorded against it
+  const started = row.status !== "open"
+  const finished = row.status === "assigned" || row.status === "completed" || row.status === "rejected"
 
   const registered = row.assetTag ? findRegisteredAsset(row.assetTag) : undefined
   const detail: TaskDetail = {

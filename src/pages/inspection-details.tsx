@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ClipboardCheck,
   Eye,
+  Pencil,
   FileText,
   Gauge,
   Image as ImageIcon,
@@ -33,8 +34,11 @@ import { inspectionStatus, workStatus, type WorkStatus } from "@/lib/status"
 
 const look = (s: WorkStatus) => inspectionStatus[s] ?? workStatus[s]
 
-/** A completed inspection keeps its performed-by record, so it is never reassigned */
-const reassignable = (s: WorkStatus) => s !== "completed"
+/**
+ * Only an Open inspection (booked, not started) can have its date, time and
+ * ELPREMAR changed. Once it is under way, who and when are part of the record.
+ */
+const reassignable = (s: WorkStatus) => s === "pending"
 
 const resultTone: Record<Measurement["status"], "success" | "warning" | "critical"> = {
   Pass: "success",
@@ -104,7 +108,7 @@ export function InspectionDetailsPage() {
 
   const saveReassignment = ({ elpremar, date, slot }: AssignResult) => {
     updateInspection(activity.id, { elpremar: elpremar.name, due: format(date, "dd-MM-yyyy"), slot })
-    toast.success(`${activity.activity} reassigned`, {
+    toast.success(`${activity.id} updated`, {
       description: `${elpremar.name} · ${format(date, "d MMM yyyy")}, ${slotLabel(slot)}`,
     })
     setReassigning(null)
@@ -144,7 +148,7 @@ export function InspectionDetailsPage() {
               variant="outline"
               size="sm"
               className={control}
-              title={canReassign ? "View the booking and reassign it" : "A completed inspection keeps its performed-by record"}
+              title={canReassign ? "Change the date, time or ELPREMAR" : "Only an Open inspection can be edited"}
               onClick={() =>
                 setReassigning({
                   id: activity.id,
@@ -159,7 +163,7 @@ export function InspectionDetailsPage() {
                 })
               }
             >
-              <Eye className="size-3.5" /> View
+              {canReassign ? <Pencil className="size-3.5" /> : <Eye className="size-3.5" />} {canReassign ? "Edit" : "View"}
             </Button>
             {result?.maintenanceRequired ? (
               <Button size="sm" className={control} onClick={scheduleMaintenance}>

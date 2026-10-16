@@ -1,10 +1,13 @@
+import { useState } from "react"
 import { Link, useNavigate, useParams } from "react-router"
+import { toast } from "sonner"
 import {
   ArrowLeft,
   CheckCheck,
   Flame,
   Image as ImageIcon,
   MapPin,
+  Pencil,
   Package,
   ShieldCheck,
   Wrench,
@@ -13,13 +16,14 @@ import {
 import { cn } from "cn"
 
 import { PageHeader } from "@/components/common/page-header"
+import { EditTaskDialog } from "@/components/tasks/edit-task-dialog"
 import { SectionCard } from "@/components/common/section-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Detail, EvidenceGallery, Timeline } from "@/components/common/detail-view"
 import { taskTimeline, type Execution } from "@/data/task-detail"
 import { criticalityTone, priorityTone, slotLabel } from "@/data/operations"
-import { findTask, useTaskDetails } from "@/data/task-store"
+import { findTask, updateTask, useTaskDetails } from "@/data/task-store"
 import { control } from "@/lib/data-table"
 import { maintenanceStatus, workStatus, type WorkStatus } from "@/lib/status"
 
@@ -31,7 +35,7 @@ function narrative(status: WorkStatus, elpremar: string, plant: string, executio
     case "in_progress":
       return `In progress by ${execution?.performedBy ?? elpremar} at ${plant}${execution ? `, started ${execution.startedAt}` : ""}. It closes out once the completed work is submitted.`
     case "open":
-      return `Raised and on the books for ${elpremar}${execution?.endedAt ? `, submitted on ${execution.endedAt}` : ""}.`
+      return `Open: raised for ${elpremar} and not started yet.`
     case "rejected":
       return `Sent back to ${elpremar} for correction. It returns for review once the evidence is re-submitted.`
     case "completed":
@@ -52,6 +56,7 @@ export function TaskDetailsPage() {
   const details = useTaskDetails()
   const activity = findTask(id)
   const detail = id ? details[id] : undefined
+  const [editing, setEditing] = useState(false)
 
   if (!activity || !detail) {
     return (
@@ -77,11 +82,34 @@ export function TaskDetailsPage() {
         title={activity.asset}
         breadcrumbs={[{ label: "Maintenance Tasks", to: "/tasks" }, { label: activity.id }]}
         actions={
-          <Button variant="outline" size="sm" className={control} onClick={() => navigate("/tasks")}>
-            <ArrowLeft className="size-3.5" /> Back to list
-          </Button>
+          <>
+            <Button variant="outline" size="sm" className={control} onClick={() => navigate("/tasks")}>
+              <ArrowLeft className="size-3.5" /> Back to list
+            </Button>
+            {/* Only an Open task (raised, not started) can be edited */}
+            {activity.status === "open" ? (
+              <Button size="sm" className={control} onClick={() => setEditing(true)}>
+                <Pencil className="size-3.5" /> Edit
+              </Button>
+            ) : null}
+          </>
         }
       />
+
+      {activity.status === "open" ? (
+        <EditTaskDialog
+          // Remount on each opening, so the form starts from what the task holds now
+          key={editing ? "editing" : "closed"}
+          task={activity}
+          detail={detail}
+          open={editing}
+          onOpenChange={setEditing}
+          onSave={({ row, detail: changes }) => {
+            if (updateTask(activity.id, row, changes)) toast.success(`${activity.id} updated`)
+            setEditing(false)
+          }}
+        />
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
         <div className="space-y-4">

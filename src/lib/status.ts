@@ -89,30 +89,31 @@ export const workStatus: Record<
 }
 
 /**
- * A maintenance activity is planned work an approver signs off, so those screens
+ * A maintenance task is planned work an approver signs off, so those screens
  * word two of the shared statuses in approval terms. Everything else uses
  * `workStatus` as-is.
  */
 export const maintenanceStatus: Partial<Record<WorkStatus, (typeof workStatus)[WorkStatus]>> = {
-  open: { label: "Pending For Approval", badge: "warning" },
+  // Raised and not started yet; the only state a task can still be deleted in
+  open: { label: "Open", badge: "warning" },
   // Purple, so signed-off work is not mistaken for finished work at a glance
   assigned: { label: "Approved", badge: "highlight" },
 }
 
 /**
- * The statuses a maintenance activity moves through, in order, and the options
+ * The statuses a maintenance task moves through, in order, and the options
  * the Status filter offers. Rejected is reachable from the approval dialog and
  * still renders on the row, but it is not offered as a filter.
  */
 export const maintenanceStatuses: WorkStatus[] = ["open", "assigned", "in_progress", "completed"]
 
 /**
- * An inspection activity is signed off before it starts, so what the shared map
- * calls Pending reads as Approved. There is no separate assigned state.
+ * An inspection is Open (booked, not started), In Progress or Completed. What
+ * the shared map calls Pending reads as Open, in the same amber as an Open
+ * maintenance task - the one state either can still be edited or deleted in.
  */
 export const inspectionStatus: Partial<Record<WorkStatus, (typeof workStatus)[WorkStatus]>> = {
-  // Same purple as maintenance, so Approved never reads as finished work
-  pending: { label: "Approved", badge: "highlight" },
+  pending: { label: "Open", badge: "warning" },
 }
 
 /** The statuses an inspection activity moves through, in order */

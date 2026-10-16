@@ -39,7 +39,7 @@ export function AttentionAssets({ assets, showPlant = false }: { assets: Attenti
             <TableHead className={th}>Location</TableHead>
             <TableHead className={th}>Health Status</TableHead>
             <TableHead className={th}>Scheduled On</TableHead>
-            <TableHead className={th}>Activity Type</TableHead>
+            <TableHead className={th}>Task Type</TableHead>
             <TableHead className={`${th} text-center`}>Action</TableHead>
           </TableRow>
         </TableHeader>
@@ -60,8 +60,8 @@ export function AttentionAssets({ assets, showPlant = false }: { assets: Attenti
               <TableCell className={`${td} tabular-nums`}>{a.scheduledOn}</TableCell>
               <TableCell className={td}>
                 <span className="flex items-center gap-1.5">
-                  <span className="size-2 shrink-0 rounded-full" style={{ background: activityColor[a.activityType] }} />
-                  {a.activityType}
+                  <span className="size-2 shrink-0 rounded-full" style={{ background: activityColor[a.maintenanceType] }} />
+                  {a.maintenanceType}
                 </span>
               </TableCell>
               <TableCell className={`${td} text-center`}>
