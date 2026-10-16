@@ -28,14 +28,13 @@ import { healthStatus } from "@/lib/status"
 
 /* ---------- Options ---------- */
 
-const maintenanceKinds = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const
+/**
+ * The maintenance types this form offers. They are the parameter sheet's own
+ * names, the same ones the Tasks list's Type column shows, so a ticked box files
+ * as it reads. Condition-Based Maintenance is left off this form on purpose.
+ */
+const maintenanceKinds = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const satisfies readonly TaskType[]
 type MaintenanceKind = (typeof maintenanceKinds)[number]
-
-/** How each box on the form files into the Tasks list's Type column */
-const kindToType: Record<MaintenanceKind, TaskType> = {
-  "Preventive Maintenance": "Preventive",
-  "Fire Preventive Maintenance": "Fire Preventive",
-}
 
 const instaFluids = [
   { name: "INSTA 50", hint: "Light contamination" },
@@ -374,7 +373,7 @@ export function AddTaskPage() {
       {
         asset: form.assetName.trim(),
         plant: form.plant,
-        type: kindToType[form.kinds[0]],
+        type: form.kinds[0],
         elpremar: form.performedBy,
         scheduled,
         // Booked intervals run 09:00-18:00, so an out-of-hours start files at the nearest one

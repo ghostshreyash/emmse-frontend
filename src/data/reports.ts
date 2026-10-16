@@ -184,6 +184,8 @@ function reportFor(asset: AssetRecord, index: number): ReportRow | undefined {
   if (!inspected) return undefined
 
   const score = asset.healthScore
+  /* Not scored yet (onboarded and never inspected): nothing to report either */
+  if (score === null) return undefined
 
   /* The Contamination Report is what produces the score, so the two agree */
   const contamination: ContaminationLevel = score >= 70 ? "Low" : score >= 50 ? "Medium" : "High"
