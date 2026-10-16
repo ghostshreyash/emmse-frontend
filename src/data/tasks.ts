@@ -11,13 +11,9 @@ import { crew, day, daySlots, seeded } from "@/data/operations"
 import type { WorkStatus } from "@/lib/status"
 
 /**
- * The maintenance programmes a task can belong to: the parameter sheet's
- * Maintenance Type, in the sheet's own wording. The screens used to shorten
- * these ("Preventive", "Condition-Based") and to carry a "Corrective" type the
- * sheet does not list — both are gone, and every type now comes from this list.
- *
- * Maintenance tasks are Preventive or Fire Preventive only: Condition-Based
- * Maintenance is not offered on tasks, by the client's instruction.
+ * The maintenance programmes a task can belong to, in the parameter sheet's own
+ * wording — see `maintenanceTypes`, which is the one place the list is kept and
+ * the one place to change it.
  */
 export const taskTypes = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const satisfies readonly MaintenanceType[]
 export type TaskType = (typeof taskTypes)[number]

@@ -31,6 +31,7 @@ Designs follow `docs/EVITA_WORKFLOW.pdf`, pages 30–36.
 | `/inspection-activities` → `/add` → `/:id` | Inspections: the inspection queue across the enterprise's plants | Built |
 | `/reports` → `/reports/:assetId` | Reports & Analytics: the contamination, hygiene and cleaning report per asset | Built |
 | `/support-tickets` → `/support-tickets/:id` | Support Tickets, and Report an Issue | Built |
+| `/support` | Contact & Help: the FAQ, the helpdesk details and the way to raise a ticket | Built |
 | `/profile` | The signed-in administrator's own profile | Built |
 | Other sidebar sections | Asset Management, Users & Access, Settings and the rest | Placeholder |
 
@@ -38,8 +39,15 @@ Every screen under the shell carries the help assistant, bottom right. It
 answers from the client's `Olivine_APP_AI_Chatbot_FAQ_` sheet - the 99 rows
 marked for EMMS-E - and from nothing else; there is no model behind it. See
 `src/lib/help-bot.ts` for the matching and `src/data/faq.ts` for the rows. When
-it has no approved answer it offers Report an Issue, which is the client's own
-rule: a ticket is the escalation path for what the chatbot cannot resolve.
+it has no approved answer it offers Report an Issue and the full answer list,
+which is the client's own rule: a ticket is the escalation path for what the
+chatbot cannot resolve.
+
+**Contact & Help** (`/support`) is where those rows are read all at once rather
+than one at a time - browsed by topic or searched across every topic - with the
+helpdesk details beside them and the ticket at the end. The support line, email
+and hours in `src/data/support.ts` are placeholders; no OLIVINE document gives
+them, and EVITA carries the same stand-ins.
 
 ### Support tickets
 
@@ -69,13 +77,33 @@ The three documents in `public/reports` are the client's own samples, carried
 across from EVITA, and stand in until the reporting service exists -
 `src/data/report-documents.ts` is the one place to swap them for real URLs.
 
+An asset's own screen lists its **whole report history**, newest first, rather
+than its latest three: two reports off every inspection and one off every
+clean, each row linking to the activity that produced it. The rows are built
+from the inspection and task books, so every id opens a real record whose date
+and ELPREMAR match the row. The current reading is the row marked Latest - the
+one the cards, the charts and the two report panels are showing.
+
+Above the table sit the activity totals - total maintenance, each programme,
+and total inspections - and under them the three trends from the mockup
+(page 34): Asset Health, Contamination Level and Maintenance Activity. The
+cards are the totals **of those charts**, summed series by series, so a card
+and the bars beside it cannot disagree. The asset's own screen carries
+the same three for that asset alone. In every one of them **the month we are in
+is real** - counted off the rows on screen, so the charts and the table cannot
+disagree and the filters move both - while the five months before it are a
+seeded walk backwards, because the mock holds one inspection and one clean per
+asset rather than half a year of them. See `src/data/report-trends.ts`;
+`TODO(api)` marks where the monthly extraction replaces it.
+
 Demo sign-in: any password and any 6-digit code are accepted. `TSL-ENT-001` or `rahul.mehta@tatasteel.com` signs in as the enterprise admin; `kavita.iyer@tatasteel.com` as a plant maintenance supervisor, whose code goes by SMS.
 
 ### Differences from the mockup
 
 - The asset table shows **Digital Asset ID** instead of "Asset Tag ID": the client confirmed the system-generated Digital Asset ID is the only asset identifier.
 - Health labels come from `src/lib/status.ts`, shared with OCC, which currently reads Healthy / Alarming / At Risk where the mockup says Healthy / Attention / Critical.
-- Inspection Type and Maintenance Type come from `src/data/master-data.ts`, worded as the parameter sheet words them. The sheet lists three maintenance types and no "Corrective" or "Emergency", so neither is offered anywhere.
+- Inspection Type and Maintenance Type come from `src/data/master-data.ts`, worded as the parameter sheet words them. The sheet lists no "Corrective" or "Emergency", so neither is offered anywhere.
+- **Condition-Based Maintenance is not offered either**, on the client's instruction - they do not run it as a programme - which leaves Preventive and Fire Preventive. That is a departure from the sheet, which still lists all three. Restoring the entry in `maintenanceTypes` brings it back to the Tasks dropdown, the dashboard chart and the Reports trend together.
 
 ## Where this came from
 

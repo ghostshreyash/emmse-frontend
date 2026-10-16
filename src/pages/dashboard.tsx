@@ -8,7 +8,7 @@ import { StatCard } from "@/components/common/stat-card"
 import { Announcements } from "@/components/dashboard/announcements"
 import { AttentionAssets } from "@/components/dashboard/attention-assets"
 import { EnterpriseInfo } from "@/components/dashboard/enterprise-info"
-import { MaintenanceTrend } from "@/components/dashboard/maintenance-trend"
+import { MaintenanceTrend } from "@/components/common/trend-charts"
 import { PlantInfo } from "@/components/dashboard/plant-info"
 import { PlantSelect } from "@/components/dashboard/plant-select"
 import { PlantsOverview } from "@/components/dashboard/plants-overview"
@@ -85,7 +85,7 @@ export function DashboardPage() {
               <DonutChart data={health} centerLabel="Total Assets" size={150} />
             </div>
           </SectionCard>
-          <MaintenanceTrend data={data.maintenanceTrend} />
+          <MaintenanceTrend data={data.maintenanceTrend} title="Maintenance Task Trend" />
         </div>
         <QuickActions />
       </div>

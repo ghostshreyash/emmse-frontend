@@ -28,7 +28,7 @@ import { InspectionDetailsPage } from "@/pages/inspection-details"
 import { AddInspectionPage } from "@/pages/add-inspection"
 
 /** Sections with a real screen; every other section gets a placeholder page */
-const built = new Set(["/","/assets", "/tasks", "/inspection-activities", "/reports", "/support-tickets"])
+const built = new Set(["/", "/assets", "/tasks", "/inspection-activities", "/reports", "/support-tickets", "/support"])
 
 export const router = createBrowserRouter([
   { path: "/login", element: <PublicOnly><LoginPage /></PublicOnly> },
@@ -66,6 +66,13 @@ export const router = createBrowserRouter([
           { path: "reports/:assetId", element: <ReportDetailsPage /> },
           { path: "support-tickets", element: <SupportTicketsPage /> },
           { path: "support-tickets/:id", element: <SupportTicketDetailsPage /> },
+          /*
+           * Split out of the bundle, as EVITA splits its Contact screen: this is
+           * the only screen that reads the whole FAQ, and importing it here put
+           * all 99 answers into the entry chunk - which also took them out of
+           * the help bubble's own lazy chunk, since they were already loaded.
+           */
+          { path: "support", lazy: async () => ({ Component: (await import("@/pages/support")).SupportPage }) },
           // Remaining sections show a placeholder until their screens are built
           ...Object.values(sections)
             .filter((item) => !built.has(item.path))

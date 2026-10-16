@@ -90,7 +90,7 @@ const notes = [
 
 const descriptions = [
   "Carry out scheduled preventive maintenance: de-dust the panel, clean contact surfaces, verify terminations and record post-work readings.",
-  "Condition-based intervention following elevated thermal readings. Clean, re-torque and re-scan the affected compartment.",
+  "Follow-up intervention after elevated thermal readings. Clean, re-torque and re-scan the affected compartment.",
   "Fire preventive maintenance round: inspect suppression readiness, apply retardant treatment and log the outcome.",
 ]
 

@@ -54,22 +54,13 @@ export const enterpriseInfo = {
 
 /**
  * The series on the maintenance trend chart: one per Maintenance Type, labelled
- * from the parameter sheet's list rather than from names of its own. The chart
- * used to carry a "Corrective" and an "Emergency" series the sheet does not
- * list; the work they stood for is condition-based.
+ * from master-data rather than from names of its own, so the chart cannot carry
+ * a programme the enterprise does not run.
  */
 export const maintenanceMix = [
   { key: "preventive", label: maintenanceTypes[0], color: "var(--primary)" },
-  { key: "conditionBased", label: maintenanceTypes[1], color: "var(--success)" },
-  { key: "firePreventive", label: maintenanceTypes[2], color: "var(--destructive)" },
+  { key: "firePreventive", label: maintenanceTypes[1], color: "var(--destructive)" },
 ] as const
-
-/**
- * What the dashboard's Maintenance Task Trend chart draws: Preventive and Fire
- * Preventive only. Condition-based work stays in the mix above, since tasks and the
- * attention table still carry that type; it is just not charted.
- */
-export const trendSeries = maintenanceMix.filter((t) => t.key !== "conditionBased")
 
 type MaintenanceKey = (typeof maintenanceMix)[number]["key"]
 export type MaintenanceMonth = { month: string } & Record<MaintenanceKey, number>
@@ -117,12 +108,12 @@ function kpis(c: { assets: number; healthy: number; attention: number; critical:
 
 /** Enterprise-wide maintenance tasks closed per month, by type */
 const enterpriseTrend: MaintenanceMonth[] = [
-  { month: "May", preventive: 60, conditionBased: 26, firePreventive: 14 },
-  { month: "Jun", preventive: 96, conditionBased: 44, firePreventive: 30 },
-  { month: "Jul", preventive: 64, conditionBased: 30, firePreventive: 16 },
-  { month: "Aug", preventive: 82, conditionBased: 36, firePreventive: 22 },
-  { month: "Sep", preventive: 92, conditionBased: 46, firePreventive: 30 },
-  { month: "Oct", preventive: 96, conditionBased: 48, firePreventive: 32 },
+  { month: "May", preventive: 72, firePreventive: 28 },
+  { month: "Jun", preventive: 118, firePreventive: 52 },
+  { month: "Jul", preventive: 78, firePreventive: 32 },
+  { month: "Aug", preventive: 100, firePreventive: 40 },
+  { month: "Sep", preventive: 114, firePreventive: 54 },
+  { month: "Oct", preventive: 120, firePreventive: 56 },
 ]
 
 /**
