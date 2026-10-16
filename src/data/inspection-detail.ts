@@ -11,6 +11,7 @@
  * only appear here as a recommended follow-up action.
  */
 import type { EvidenceItem, TimelineStep } from "@/data/evidence"
+import { findRegisteredAsset } from "@/data/assets"
 import type { InspectionRow } from "@/data/inspections"
 import { areas, assetCategories, assetCriticality, commissionDate, type AssetCriticality } from "@/data/operations"
 
@@ -180,14 +181,16 @@ export function inspectionDetail(row: InspectionRow): InspectionDetail {
   }
   const pick = <T,>(pool: readonly T[]) => pool[Math.floor(random() * pool.length)]
 
+  const registered = findRegisteredAsset(row.assetTag)
   const detail: InspectionDetail = {
     description: instructions[row.activity] ?? instructions["Visual Inspection"],
     createdBy: `${pick(supervisors)} (OCC)`,
-    area: pick(areas),
-    assetTag: `TAG-${row.plant.slice(0, 3).toUpperCase()}-${row.id.slice(-4)}`,
-    assetCategory: pick(assetCategories),
-    assetCriticality: pick(assetCriticality),
-    commissionedOn: commissionDate(random),
+    // Read off the register asset inspected, so both screens describe the same kit
+    area: registered?.area ?? pick(areas),
+    assetTag: row.assetTag,
+    assetCategory: registered?.category ?? pick(assetCategories),
+    assetCriticality: registered?.criticality ?? pick(assetCriticality),
+    commissionedOn: registered?.commissionedOn ?? commissionDate(random),
     measurements: [],
     observations: [],
     evidence: [],
@@ -247,7 +250,7 @@ export function inspectionDetail(row: InspectionRow): InspectionDetail {
       recommendedActions:
         detail.observations.length || flagged
           ? [
-              "Raise a condition-based maintenance activity for the flagged compartment.",
+              "Raise a condition-based maintenance task for the flagged compartment.",
               "Re-scan under load after the intervention to confirm the reading has settled.",
             ]
           : ["No action required. Retain the present inspection interval."],

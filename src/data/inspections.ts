@@ -3,8 +3,9 @@
  * the OCC Inspection Activities screens and scoped to this enterprise's own plants.
  * Replace with GET /inspection-activities once the backend exists.
  */
+import { assetRegister } from "@/data/assets"
 import { plants } from "@/data/dashboard"
-import { activityTypes, assetCategories, crew, day, daySlots, priorities, seeded, units, type Priority } from "@/data/operations"
+import { activityTypes, crew, day, daySlots, priorities, seeded, type Priority } from "@/data/operations"
 import type { WorkStatus } from "@/lib/status"
 
 /** An inspection only ever waits, runs or finishes — there is no separate assigned state */
@@ -18,6 +19,8 @@ export type InspectionRow = {
   elpremar: string
   plant: string
   asset: string
+  /** The register asset inspected, so its history can be read back on the asset */
+  assetTag: string
   /** An inspection activity — cleaning is maintenance work and belongs in Tasks */
   activity: string
   due: string
@@ -35,6 +38,10 @@ function generateInspections(count: number): InspectionRow[] {
   for (let i = 0; i < count; i++) {
     // Walked in order, so every plant and engineer appears once the count covers them
     const plant = plants[i % plants.length].name
+    // Walk each plant's register from the top, so the hand-written assets lead and
+    // a handful of assets per plant build up a history of more than one inspection
+    const onSite = assetRegister.filter((a) => a.plant === plant).slice(0, 8)
+    const target = onSite[Math.floor(i / plants.length) % onSite.length]
     const elpremar = crew[(i * 5) % crew.length]
     const due = day(Math.floor(random() * 50) - 28)
     let slot = pick(daySlots)
@@ -44,10 +51,11 @@ function generateInspections(count: number): InspectionRow[] {
     taken.add(`${elpremar}|${due}|${slot}`)
 
     rows.push({
-      id: `TSK-${8841 - i}`,
+      id: `INS-${8841 - i}`,
       elpremar,
       plant,
-      asset: `${pick(assetCategories)} - ${pick(units)}`,
+      asset: target.name,
+      assetTag: target.tagId,
       activity: pick(activityTypes),
       due,
       slot,

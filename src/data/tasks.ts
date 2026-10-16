@@ -6,8 +6,8 @@
  */
 import { plants } from "@/data/dashboard"
 import { inspections, type InspectionRow } from "@/data/inspections"
-import { maintenanceTypes, type MaintenanceType } from "@/data/master-data"
-import { assetCategories, crew, day, daySlots, seeded, units } from "@/data/operations"
+import type { MaintenanceType } from "@/data/master-data"
+import { crew, day, daySlots, seeded } from "@/data/operations"
 import type { WorkStatus } from "@/lib/status"
 
 /**
@@ -15,15 +15,16 @@ import type { WorkStatus } from "@/lib/status"
  * wording — see `maintenanceTypes`, which is the one place the list is kept and
  * the one place to change it.
  */
-export const taskTypes = maintenanceTypes
-export type TaskType = MaintenanceType
+export const taskTypes = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const satisfies readonly MaintenanceType[]
+export type TaskType = (typeof taskTypes)[number]
 
-/** The mock book is raised already signed off, so none of it waits in "open" */
+/** Where tasks on the mock book stand; a few are still Open (raised, not started) */
 const workStates: WorkStatus[] = ["assigned", "in_progress", "completed"]
+const bookStates: WorkStatus[] = ["open", ...workStates]
 
 /**
- * Status filter options, in the order a task moves through them. "open" reads as
- * Pending For Approval: where a task added from the Add Task screen starts.
+ * Status filter options, in the order a task moves through them. "Open" is where
+ * a task added from the Add Maintenance Task screen starts.
  */
 export const taskStatuses: WorkStatus[] = ["open", ...workStates]
 
@@ -40,15 +41,17 @@ export type TaskRow = {
   status: WorkStatus
   /** The inspection this work traces back to; absent on a task added directly */
   inspectionId?: string
+  /** The register asset worked on, so its history can be read back on the asset */
+  assetTag?: string
 }
 
 /**
  * Trace every task back to an inspection at the same plant, spread across that
  * plant's inspections rather than all pointing at the first one.
  */
-function inspectionAt(plant: string, n: number) {
+function inspectionAt(plant: string, n: number): InspectionRow {
   const pool: InspectionRow[] = inspections.filter((t) => t.plant === plant)
-  return (pool.length ? pool : inspections)[n % (pool.length || inspections.length)].id
+  return (pool.length ? pool : inspections)[n % (pool.length || inspections.length)]
 }
 
 function generateTasks(count: number): TaskRow[] {
@@ -67,16 +70,19 @@ function generateTasks(count: number): TaskRow[] {
       slot = daySlots[(daySlots.indexOf(slot) + 1) % daySlots.length]
     taken.add(`${elpremar}|${scheduled}|${slot}`)
 
+    // Maintenance follows an inspection, on the same asset that inspection looked at
+    const source = inspectionAt(plant, Math.floor(i / plants.length))
     rows.push({
       id: `MT-${2291 - i}`,
-      asset: `${pick(assetCategories)} - ${pick(units)}`,
+      asset: source.asset,
+      assetTag: source.assetTag,
       plant,
       type: pick(taskTypes),
       elpremar,
       scheduled,
       slot,
-      status: pick(workStates),
-      inspectionId: inspectionAt(plant, Math.floor(i / plants.length)),
+      status: pick(bookStates),
+      inspectionId: source.id,
     })
   }
   return rows

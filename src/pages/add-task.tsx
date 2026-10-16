@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react"
-import { useNavigate } from "react-router"
+import { useNavigate, useSearchParams } from "react-router"
 import { differenceInMonths, format, isValid, parse } from "date-fns"
 import { toast } from "sonner"
-import { Clock, Info, Search, Send } from "lucide-react"
+import { Clock, Info, Send } from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
@@ -13,26 +13,28 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { PageHeader } from "@/components/common/page-header"
-import { AssetIllustration, ClearButton, HealthGauge, InspectedAssetPicker, type InspectedAsset } from "@/components/tasks/add-task-parts"
-import { assetRegister, departments, findAsset, type AssetRecord } from "@/data/assets"
+import { AssetIllustration } from "@/components/common/asset-illustration"
+import { ClearButton, HealthGauge, InspectedAssetPicker, type InspectedAsset } from "@/components/tasks/add-task-parts"
+import { departments, type AssetRecord } from "@/data/assets"
+import { findAsset, useAssetRows } from "@/data/asset-store"
 import { plants } from "@/data/dashboard"
 import { useInspectionDetails, useInspectionRows } from "@/data/inspection-store"
-import { assetCategories, crew } from "@/data/operations"
+import { assetCategories } from "@/data/master-data"
+import { crew } from "@/data/operations"
 import { addTask, useTaskRows } from "@/data/task-store"
-import { taskTypes, type TaskType } from "@/data/tasks"
+import type { TaskType } from "@/data/tasks"
 import { useAuth } from "@/lib/auth/context"
 import { healthStatus } from "@/lib/status"
 
 /* ---------- Options ---------- */
 
 /**
- * The Maintenance Type boxes. These are the parameter sheet's own three values,
- * so what is ticked here is what the Tasks list shows in its Type column - the
- * form used to offer a third set of names ("Routine Cleaning", "Corrective
- * Maintenance") and map them across.
+ * The maintenance types this form offers. They are the parameter sheet's own
+ * names, the same ones the Tasks list's Type column shows, so a ticked box files
+ * as it reads. Condition-Based Maintenance is left off this form on purpose.
  */
-const maintenanceKinds = taskTypes
-type MaintenanceKind = TaskType
+const maintenanceKinds = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const satisfies readonly TaskType[]
+type MaintenanceKind = (typeof maintenanceKinds)[number]
 
 const instaFluids = [
   { name: "INSTA 50", hint: "Light contamination" },
@@ -54,11 +56,11 @@ const healthLabel: Record<(typeof editableHealth)[number], string> = { healthy: 
 type StepKey = "details" | "cleaning" | "post" | "fire" | "pd" | "review"
 
 /*
- * Only Task Details is offered for now. Uncomment a line to bring its tab back;
+ * Only Maintenance Details is offered for now. Uncomment a line to bring its tab back;
  * the step's content further down is still in place.
  */
 const steps: { n: number; key: StepKey; label: string }[] = [
-  { n: 2, key: "details", label: "Task Details" },
+  { n: 2, key: "details", label: "Maintenance Details" },
   // { n: 3, key: "cleaning", label: "Cleaning with INSTA Fluids" },
   // { n: 4, key: "post", label: "Post-Cleaning Data" },
   // { n: 5, key: "fire", label: "Fire Prevention System" },
@@ -93,8 +95,6 @@ type TaskForm = {
   mode: "online" | "offline"
   workOrder: string
   fluids: string[]
-  quantity: string
-  unit: "Liters" | "ml"
   cleaning: { method: string; contamination: string; compartments: string[]; dryingMinutes: string; remarks: string }
   post: { irBefore: string; irAfter: string; hotspotBefore: string; hotspotAfter: string; condition: string; remarks: string }
   fire: { installed: boolean; tested: boolean; date: string; system: string; remarks: string }
@@ -138,8 +138,6 @@ function blankForm(workOrder: string): TaskForm {
     mode: "online",
     workOrder,
     fluids: [],
-    quantity: "",
-    unit: "Liters",
     cleaning: { method: "", contamination: "", compartments: [], dryingMinutes: "", remarks: "" },
     post: { irBefore: "", irAfter: "", hotspotBefore: "", hotspotAfter: "", condition: "", remarks: "" },
     fire: { installed: false, tested: false, date: "", system: "", remarks: "" },
@@ -154,6 +152,25 @@ function readDraft(): TaskForm | null {
     return raw ? (JSON.parse(raw) as TaskForm) : null
   } catch {
     return null
+  }
+}
+
+/** What loading a register asset fills in on the form */
+function assetFields(found: AssetRecord): Partial<TaskForm> {
+  return {
+    tagId: found.tagId,
+    loadedTag: found.tagId,
+    inspectionId: "",
+    plant: found.plant,
+    department: found.department,
+    subDepartment: found.subDepartment,
+    category: found.category,
+    assetName: found.name,
+    manufacturer: found.manufacturer,
+    model: found.model,
+    serial: found.serial,
+    health: found.health ?? "",
+    nextDue: toInput(found.nextDue),
   }
 }
 
@@ -215,7 +232,7 @@ function Panel({ title, className, children, action }: { title: string; classNam
 /* ---------- Page ---------- */
 
 /**
- * Add Task: record a maintenance activity end to end — pick the asset, log the
+ * Add Task: record a maintenance task end to end — pick the asset, log the
  * cleaning with INSTA fluids, the post-cleaning readings and any fire prevention
  * or PD mitigation work, then submit it for approval. Built to the "Maintenance
  * Activities" mockup, named Tasks to match this app.
@@ -226,7 +243,13 @@ export function AddTaskPage() {
   const taskCount = useTaskRows().length
 
   // A draft saved before a field existed still opens, with that field blank
-  const [form, setForm] = useState<TaskForm>(() => ({ ...blankForm(`WO-${format(new Date(), "yyyy")}-${1100 + taskCount}`), ...readDraft() }))
+  const [params] = useSearchParams()
+  // ?asset=TAG (from Asset Management's Log New Activity) opens with that asset loaded
+  const [form, setForm] = useState<TaskForm>(() => {
+    const base = { ...blankForm(`WO-${format(new Date(), "yyyy")}-${1100 + taskCount}`), ...readDraft() }
+    const linked = findAsset(params.get("asset") ?? "")
+    return linked ? { ...base, ...assetFields(linked) } : base
+  })
   const [step, setStep] = useState<StepKey>("details")
 
   const asset: AssetRecord | undefined = form.loadedTag ? findAsset(form.loadedTag) : undefined
@@ -293,16 +316,17 @@ export function AddTaskPage() {
   const toggle = (list: string[], item: string, on: boolean) => (on ? [...new Set([...list, item])] : list.filter((x) => x !== item))
 
   // Asset IDs that fit the filters above, offered as suggestions while typing
+  const register = useAssetRows()
   const suggestions = useMemo(
     () =>
-      assetRegister.filter(
+      register.filter(
         (a) =>
           a.plant === form.plant &&
           (!form.department || a.department === form.department) &&
           (!form.subDepartment || a.subDepartment === form.subDepartment) &&
           (!form.category || a.category === form.category)
       ),
-    [form.plant, form.department, form.subDepartment, form.category]
+    [register, form.plant, form.department, form.subDepartment, form.category]
   )
 
   function loadAsset(tagId = form.tagId) {
@@ -311,22 +335,7 @@ export function AddTaskPage() {
       toast.error(tagId.trim() ? `No asset with ID ${tagId.trim()}` : "Enter an Asset ID / Tag ID to load")
       return
     }
-    setForm((f) => ({
-      ...f,
-      tagId: found.tagId,
-      loadedTag: found.tagId,
-      inspectionId: "",
-      plant: found.plant,
-      department: found.department,
-      subDepartment: found.subDepartment,
-      category: found.category,
-      assetName: found.name,
-      manufacturer: found.manufacturer,
-      model: found.model,
-      serial: found.serial,
-      health: found.health,
-      nextDue: toInput(found.nextDue),
-    }))
+    setForm((f) => ({ ...f, ...assetFields(found) }))
     toast.success(`${found.name} loaded`, { description: `${found.tagId} · ${found.plant}` })
   }
 
@@ -338,7 +347,6 @@ export function AddTaskPage() {
     !form.performedBy && "Assign To (ELPREMAR)",
     !form.kinds.length && "Maintenance type",
     !form.fluids.length && "INSTA fluid used",
-    !form.quantity && "Quantity used",
   ].filter(Boolean) as string[]
 
   /* ---------- Actions ---------- */
@@ -360,8 +368,6 @@ export function AddTaskPage() {
     }
     const scheduled = toDisplay(form.plannedDate)
     const hour = Number(form.startTime.slice(0, 2))
-    const unit = form.unit === "Liters" ? "L" : "ml"
-    const share = Number(form.quantity) / form.fluids.length
 
     const id = addTask(
       {
@@ -374,6 +380,8 @@ export function AddTaskPage() {
         slot: Math.min(17, Math.max(9, hour)),
         status: "open",
         inspectionId: form.inspectionId || undefined,
+        // Filed against the register asset when the ID is one, so it shows in that asset's history
+        assetTag: findAsset(form.tagId)?.tagId,
       },
       {
         description:
@@ -390,9 +398,10 @@ export function AddTaskPage() {
           mode: form.mode === "online" ? "Online / In-Service" : "Offline / Out-of-Service",
           startedAt: `${scheduled} ${form.startTime}`,
           endedAt: form.endTime ? `${scheduled} ${form.endTime}` : undefined,
-          notes: form.cleaning.remarks || form.post.remarks || form.notes || "Recorded from the Add Task screen.",
+          notes: form.cleaning.remarks || form.post.remarks || form.notes || "Recorded from the Add Maintenance Task screen.",
         },
-        products: form.fluids.map((name) => ({ name, quantity: Number(share.toFixed(1)), unit })),
+        // Fluids are recorded by name only; this screen does not capture quantities
+        products: form.fluids.map((name) => ({ name })),
         firePrevention: form.fire.installed ? { system: form.fire.system || "Not specified", remarks: form.fire.remarks || "Installed." } : undefined,
         pdMitigation: form.pd.performed ? { method: form.pd.method || "Not specified", remarks: form.pd.remarks || "Performed." } : undefined,
         evidence: [],
@@ -405,7 +414,7 @@ export function AddTaskPage() {
     } catch {
       // Nothing to clear in a browser without storage
     }
-    toast.success(`Task ${id} submitted for approval`, { description: `${form.assetName.trim()} · ${form.plant}` })
+    toast.success(`Maintenance task ${id} created`, { description: `${form.assetName.trim()} · ${form.plant}` })
     navigate(`/tasks/${id}`)
   }
 
@@ -421,9 +430,9 @@ export function AddTaskPage() {
   return (
     <div className="space-y-3">
       <PageHeader
-        title="Task"
+        title="Add Maintenance Task"
         description=""
-        breadcrumbs={[{ label: "Tasks", to: "/tasks" }, { label: "Add Task" }]}
+        breadcrumbs={[{ label: "Maintenance Tasks", to: "/tasks" }, { label: "Add Maintenance Task" }]}
         actions={
           <>
             {/* <Button variant="outline" size="sm" className="bg-card text-primary" onClick={() => toast.info("The SOP / Work Instruction document will open here once it is uploaded.")}>
@@ -463,24 +472,20 @@ export function AddTaskPage() {
             <Choice value={form.category} onChange={(v) => set("category", v)} options={assetCategories} />
           </Field>
           <Field label="Asset ID / Tag ID">
-            <div className="flex gap-1.5">
-              <div className="relative flex-1">
-                <Input
-                  value={form.tagId}
-                  onChange={(e) => set("tagId", e.target.value.toUpperCase())}
-                  onKeyDown={(e) => e.key === "Enter" && loadAsset()}
-                  list="asset-tags"
-                  placeholder="Enter or pick an ID"
-                  className={cn(control, "pr-7 tabular-nums")}
-                />
-                {form.tagId ? <ClearButton label="Clear Asset ID" onClick={() => set("tagId", "")} /> : null}
-                <datalist id="asset-tags">
-                  {suggestions.map((a) => <option key={a.tagId} value={a.tagId}>{a.name}</option>)}
-                </datalist>
-              </div>
-              <Button size="icon-sm" className="size-8" aria-label="Find asset" onClick={() => loadAsset()}>
-                <Search />
-              </Button>
+            {/* Enter here or the Load Asset button loads it */}
+            <div className="relative">
+              <Input
+                value={form.tagId}
+                onChange={(e) => set("tagId", e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === "Enter" && loadAsset()}
+                list="asset-tags"
+                placeholder="Enter or pick an ID"
+                className={cn(control, "pr-7 tabular-nums")}
+              />
+              {form.tagId ? <ClearButton label="Clear Asset ID" onClick={() => set("tagId", "")} /> : null}
+              <datalist id="asset-tags">
+                {suggestions.map((a) => <option key={a.tagId} value={a.tagId}>{a.name}</option>)}
+              </datalist>
             </div>
           </Field>
         </div>
@@ -540,11 +545,15 @@ export function AddTaskPage() {
                 </dl>
                 <div className={cn(miniCard, "flex flex-col items-center justify-center bg-card px-6 py-1.5")}>
                   <span className="text-sm font-medium text-primary">Current Health Score</span>
-                  <HealthGauge score={asset.healthScore} health={form.health || asset.health} />
+                  {asset.healthScore !== null && (form.health || asset.health) ? (
+                    <HealthGauge score={asset.healthScore} health={(form.health || asset.health)!} />
+                  ) : (
+                    <span className="py-3 text-xs text-muted-foreground">Not inspected yet</span>
+                  )}
                 </div>
                 <dl className={cn(miniCard, "grid content-center grid-cols-[auto_auto] gap-x-6 gap-y-1 px-4 py-2 text-sm")}>
                   <dt>Last Inspection</dt>
-                  <dd className="tabular-nums">{asset.lastInspection}</dd>
+                  <dd className="tabular-nums">{asset.lastInspection || "—"}</dd>
                   <dt>Commissioning Date</dt>
                   <dd className="tabular-nums">{asset.commissionedOn}</dd>
                   <dt>Asset Age</dt>
@@ -601,7 +610,7 @@ export function AddTaskPage() {
             <div className="rounded-b-lg rounded-tr-lg bg-card p-3 ring-1 ring-foreground/10">
               {step === "details" ? (
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem]">
-                  <Panel title="Maintenance Activity Information">
+                  <Panel title="Maintenance Task Information">
                     <div className="mb-3 grid gap-3 sm:grid-cols-2">
                       <Field label="Asset Details">
                         <InspectedAssetPicker options={inspectedAssets} value={form.inspectionId} onChange={pickInspected} />
@@ -671,16 +680,6 @@ export function AddTaskPage() {
                         <Tick key={f.name} id={`fluid-${f.name}`} label={f.name} hint={f.hint} checked={form.fluids.includes(f.name)} onChange={(on) => set("fluids", toggle(form.fluids, f.name, on))} />
                       ))}
                     </div>
-                    <div className="mt-3 flex items-center gap-2 border-t pt-3">
-                      <span className="text-[0.7rem] font-medium whitespace-nowrap text-muted-foreground">Quantity Used</span>
-                      <Input
-                        value={form.quantity}
-                        onChange={(e) => set("quantity", e.target.value.replace(/[^\d.]/g, ""))}
-                        inputMode="decimal"
-                        className={cn(control, "w-14 tabular-nums")}
-                      />
-                      <Choice value={form.unit} onChange={(v) => set("unit", v as TaskForm["unit"])} options={["Liters", "ml"]} className="w-20" />
-                    </div>
                   </Panel>
                 </div>
               ) : null}
@@ -700,7 +699,7 @@ export function AddTaskPage() {
                       </Field>
                       <Field label="INSTA Fluids Used">
                         <p className="pt-1.5 text-xs">
-                          {form.fluids.length ? `${form.fluids.join(", ")}${form.quantity ? ` · ${form.quantity} ${form.unit}` : ""}` : <span className="text-muted-foreground">Pick them on Maintenance Details</span>}
+                          {form.fluids.length ? form.fluids.join(", ") : <span className="text-muted-foreground">Pick them on Maintenance Details</span>}
                         </p>
                       </Field>
                     </div>
@@ -884,7 +883,7 @@ function Review({
         ["Maintenance Type", form.kinds.join(", ") || "—"],
         ["Mode", form.mode === "online" ? "Online (In-Service)" : "Offline (Out of Service)"],
         ["Work Order", form.workOrder],
-        ["INSTA Fluids", form.fluids.length ? `${form.fluids.join(", ")} · ${form.quantity || "?"} ${form.unit}` : "—"],
+        ["INSTA Fluids", form.fluids.length ? form.fluids.join(", ") : "—"],
       ],
     },
     {

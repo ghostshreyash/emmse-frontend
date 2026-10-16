@@ -36,9 +36,9 @@ export type NavItem = {
 export const sections = {
   dashboard: { title: "Dashboard", path: "/", icon: House },
   assets: { title: "Asset Management", path: "/assets", icon: HardDrive },
-  tasks: { title: "Tasks", path: "/tasks", icon: Wrench },
+  tasks: { title: "Maintenance Tasks", path: "/tasks", icon: Wrench },
   /** The original Tasks route, kept as its placeholder page; Tasks now lives at /tasks */
-  maintenance: { title: "Maintenance Activities", path: "/maintenance-activities", icon: Wrench },
+  maintenance: { title: "Maintenance Tasks", path: "/maintenance-activities", icon: Wrench },
   reports: { title: "Reports & Analytics", path: "/reports", icon: ChartColumn, covers: ["/reports/"] },
   inspections: { title: "Inspections", path: "/inspection-activities", icon: ClipboardCheck },
   /** The original Inspections route, kept as its placeholder page */

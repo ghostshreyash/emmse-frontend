@@ -145,11 +145,18 @@ const maintenanceConfig = Object.fromEntries(
   maintenanceMix.map((t) => [t.key, { label: t.label, color: t.color }])
 ) satisfies ChartConfig
 
-/** Stacked monthly maintenance activities by type, last six months */
-export function MaintenanceTrend({ data }: { data: MaintenanceMonth[] }) {
+/**
+ * Stacked monthly maintenance by type, last six months.
+ *
+ * The title is a prop because the two screens that draw this name it
+ * differently and both are right: the dashboard counts tasks on the books, so
+ * it reads Maintenance Task Trend, while Reports counts the work behind the
+ * cleaning reports and keeps the mockup's own Maintenance Activity Trend.
+ */
+export function MaintenanceTrend({ data, title = "Maintenance Activity Trend" }: { data: MaintenanceMonth[]; title?: string }) {
   return (
     <SectionCard
-      title="Maintenance Activity Trend"
+      title={title}
       icon={<CalendarDays className="size-4 text-primary" />}
       actions={<Window />}
     >

@@ -3,19 +3,20 @@ import { Link, useNavigate } from "react-router"
 import type { DateRange } from "react-day-picker"
 import { isAfter, isBefore, parse, startOfDay } from "date-fns"
 import { FileText, Plus, Search, Sheet, X } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "cn"
 
 import { DateRangeFilter, SortHead, TablePager } from "@/components/common/data-table"
+import { ConfirmDelete, DeleteRowButton } from "@/components/common/confirm-delete"
 import { PageHeader } from "@/components/common/page-header"
-// Restore alongside the Priority / Status columns below:
-// import { Badge } from "@/components/ui/badge"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { plants } from "@/data/dashboard"
-import { useInspectionRows } from "@/data/inspection-store"
-import type { InspectionRow } from "@/data/inspections" // + inspectionStatusOrder
+import { deleteInspection, useInspectionRows } from "@/data/inspection-store"
+import { inspectionStatusOrder, type InspectionRow } from "@/data/inspections"
 import { slotLabel } from "@/data/operations" // + priorityTone
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
@@ -66,8 +67,9 @@ export function InspectionsPage() {
   const navigate = useNavigate()
   const rows = useInspectionRows()
   const [query, setQuery] = useState("")
-  // Kept for the Status filter that is commented out below, as in OCC
   const [status, setStatus] = useState<WorkStatus | "all">("all")
+  /** The Open inspection waiting on a delete confirmation */
+  const [deleting, setDeleting] = useState<InspectionRow | null>(null)
   const [plant, setPlant] = useState("all")
   const [range, setRange] = useState<DateRange | undefined>()
   const [sort, setSort] = useState<Sort<SortKey>>(null)
@@ -150,13 +152,13 @@ export function InspectionsPage() {
               </SelectContent>
             </Select>
             <DateRangeFilter label="Due" range={range} onApply={(r) => { setRange(r); setPage(1) }} />
-            {/* <Select value={status} onValueChange={(v) => { setStatus(v as typeof status); setPage(1) }}>
+            <Select value={status} onValueChange={(v) => { setStatus(v as typeof status); setPage(1) }}>
               <SelectTrigger size="sm" className={cn(control, "w-40 bg-card")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
                 {inspectionStatusOrder.map((k) => <SelectItem key={k} value={k}>{look(k).label}</SelectItem>)}
               </SelectContent>
-            </Select> */}
+            </Select>
           </div>
           <Button variant="outline" size="sm" className={cn(control, "bg-card")} disabled={!filtersOn} onClick={clearFilters}>
             <X className="size-3.5" /> Clear Filters
@@ -174,8 +176,8 @@ export function InspectionsPage() {
                 <SortHead label="Activity" column="activity" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <SortHead label="ELPREMAR" column="elpremar" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <SortHead label="Due" column="due" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
-                {/* <SortHead label="Priority" column="priority" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
-                <SortHead label="Status" column="status" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} /> */}
+                {/* <SortHead label="Priority" column="priority" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} /> */}
+                <SortHead label="Status" column="status" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -193,15 +195,19 @@ export function InspectionsPage() {
                   </TableCell>
                   {/* <TableCell className={td}>
                     <span className={cn("rounded px-1.5 py-0.5 text-[0.65rem] font-semibold", priorityTone[r.priority])}>{r.priority}</span>
-                  </TableCell>
-                  <TableCell className={td}>
-                    <Badge variant={look(r.status).badge} className="rounded px-1.5 py-0 text-[0.65rem]">{look(r.status).label}</Badge>
                   </TableCell> */}
+                  <TableCell className={td} onClick={(e) => r.status === "pending" && e.stopPropagation()}>
+                    <span className="flex items-center gap-1.5">
+                      <Badge variant={look(r.status).badge} className="rounded px-1.5 py-0 text-[0.65rem]">{look(r.status).label}</Badge>
+                      {/* Only an inspection that has not started can be deleted */}
+                      {r.status === "pending" ? <DeleteRowButton id={r.id} onClick={() => setDeleting(r)} /> : null}
+                    </span>
+                  </TableCell>
                 </TableRow>
               ))}
               {sorted.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-xs text-muted-foreground">
+                  <TableCell colSpan={8} className="py-8 text-center text-xs text-muted-foreground">
                     No inspections match the filters.
                   </TableCell>
                 </TableRow>
@@ -220,6 +226,16 @@ export function InspectionsPage() {
           />
         </div>
       </section>
+
+      <ConfirmDelete
+        id={deleting?.id}
+        summary={deleting ? `${deleting.activity} on ${deleting.asset}, ${deleting.plant}, due ${deleting.due}` : undefined}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting && deleteInspection(deleting.id)) toast.success(`${deleting.id} deleted`)
+          setDeleting(null)
+        }}
+      />
     </div>
   )
 }

@@ -3,9 +3,11 @@ import { Link, useNavigate } from "react-router"
 import type { DateRange } from "react-day-picker"
 import { isAfter, isBefore, parse, startOfDay } from "date-fns"
 import { FileText, Plus, Search, Sheet, X } from "lucide-react"
+import { toast } from "sonner"
 import { cn } from "cn"
 
 import { DateRangeFilter, SortHead, TablePager } from "@/components/common/data-table"
+import { ConfirmDelete, DeleteRowButton } from "@/components/common/confirm-delete"
 import { PageHeader } from "@/components/common/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { plants } from "@/data/dashboard"
 import { slotLabel } from "@/data/operations"
-import { useTaskRows } from "@/data/task-store"
+import { deleteTask, useTaskRows } from "@/data/task-store"
 import { taskStatuses, type TaskRow } from "@/data/tasks"
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
@@ -63,6 +65,8 @@ export function TasksPage() {
   const rows = useTaskRows()
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<WorkStatus | "all">("all")
+  /** The Open task waiting on a delete confirmation */
+  const [deleting, setDeleting] = useState<TaskRow | null>(null)
   const [plant, setPlant] = useState("all")
   const [range, setRange] = useState<DateRange | undefined>()
   const [sort, setSort] = useState<Sort<SortKey>>(null)
@@ -107,17 +111,17 @@ export function TasksPage() {
   return (
     <div>
       <PageHeader
-        title="Tasks"
-        breadcrumbs={[{ label: "Tasks" }]}
+        title="Maintenance Tasks"
+        breadcrumbs={[{ label: "Maintenance Tasks" }]}
         actions={
           <>
             <Button size="sm" className={control} asChild>
-              <Link to="/tasks/add"><Plus className="size-3.5" /> Add Task</Link>
+              <Link to="/tasks/add"><Plus className="size-3.5" /> Add Maintenance Task</Link>
             </Button>
-            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportCsv("tasks", exportColumns, sorted)}>
+            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportCsv("maintenance-tasks", exportColumns, sorted)}>
               <Sheet className="size-3.5" /> Export CSV
             </Button>
-            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportPdf("Tasks", exportColumns, sorted)}>
+            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportPdf("Maintenance Tasks", exportColumns, sorted)}>
               <FileText className="size-3.5" /> Export PDF
             </Button>
           </>
@@ -195,15 +199,21 @@ export function TasksPage() {
                     {r.scheduled}
                     <span className="block text-[0.65rem] text-muted-foreground">{slotLabel(r.slot)}</span>
                   </TableCell>
-                  <TableCell className={td}>
-                    <Badge variant={look(r.status).badge} className="rounded px-1.5 py-0 text-[0.65rem]">{look(r.status).label}</Badge>
+                  <TableCell className={td} onClick={(e) => r.status === "open" && e.stopPropagation()}>
+                    <span className="flex items-center gap-1.5">
+                      <Badge variant={look(r.status).badge} className="rounded px-1.5 py-0 text-[0.65rem]">{look(r.status).label}</Badge>
+                      {/* Only a task that has not started can be deleted */}
+                      {r.status === "open" ? (
+                        <DeleteRowButton id={r.id} onClick={() => setDeleting(r)} />
+                      ) : null}
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}
               {sorted.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="py-8 text-center text-xs text-muted-foreground">
-                    No tasks match the filters.
+                    No maintenance tasks match the filters.
                   </TableCell>
                 </TableRow>
               ) : null}
@@ -221,6 +231,16 @@ export function TasksPage() {
           />
         </div>
       </section>
+
+      <ConfirmDelete
+        id={deleting?.id}
+        summary={deleting ? `${deleting.type} on ${deleting.asset}, ${deleting.plant}, scheduled ${deleting.scheduled}` : undefined}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting && deleteTask(deleting.id)) toast.success(`${deleting.id} deleted`)
+          setDeleting(null)
+        }}
+      />
     </div>
   )
 }
