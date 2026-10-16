@@ -7,11 +7,13 @@ import { Detail } from "@/components/common/detail-view"
 import { DocumentDialog, type OpenDocument } from "@/components/common/document-dialog"
 import { PageHeader } from "@/components/common/page-header"
 import { SectionCard } from "@/components/common/section-card"
+import { AssetDustTrend, AssetScoreTrend, MaintenanceTrend } from "@/components/common/trend-charts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { healthBandFor } from "@/data/master-data"
 import { criticalityTone } from "@/data/operations"
 import { hasReport, reportDocuments, type ReportDocument } from "@/data/report-documents"
+import { assetDustTrend, assetMaintenanceTrend, assetScoreTrend } from "@/data/report-trends"
 import { contaminationTone, findingLook, findReport, type ReportRow } from "@/data/reports"
 import { control } from "@/lib/data-table"
 import { healthStatus } from "@/lib/status"
@@ -55,6 +57,11 @@ export function ReportDetailsPage() {
 
   const { asset, maintenance, inspection } = row
   const band = healthBandFor(row.healthScore)
+
+  /* Seeded off the asset, so its own trends do not move between visits */
+  const scoreTrend = assetScoreTrend(row)
+  const dustTrend = assetDustTrend(row)
+  const maintenanceMonths = assetMaintenanceTrend(row)
 
   return (
     <div>
@@ -125,6 +132,21 @@ export function ReportDetailsPage() {
               ))}
             </ul>
           </SectionCard>
+
+          {/*
+           * ---------- The same three trends, for this asset alone ----------
+           *
+           * The estate charts on the Reports screen count assets across bands;
+           * one asset has a reading rather than a distribution, so the first two
+           * are its own score and its own dust. The maintenance chart is the
+           * same one, counting only this asset's jobs - mostly empty months,
+           * which is the honest picture of how often a panel is touched.
+           */}
+          <div className="grid gap-3 xl:grid-cols-3">
+            <AssetScoreTrend data={scoreTrend} />
+            <AssetDustTrend data={dustTrend} />
+            <MaintenanceTrend data={maintenanceMonths} />
+          </div>
 
           {/* ---------- What the Contamination Report says ---------- */}
           <SectionCard title="Contamination Report" icon={<Thermometer className="size-4 text-primary" />} hoverable={false}>

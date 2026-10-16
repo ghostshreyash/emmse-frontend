@@ -64,7 +64,16 @@ export const findingLook: Record<Finding, { badge: "healthy" | "attention" | "cr
   "At Risk": { badge: "critical", dot: "bg-critical" },
 }
 
-/** How much dust the panel is carrying, as the contamination table reports it */
+/**
+ * How much dust the panel is carrying, as the contamination table reports it,
+ * and the millimetres that separate the three. Chosen so the register fills all
+ * three levels rather than piling into the middle one - the mock-data rule in
+ * CLAUDE.md, and here it is also what keeps the Contamination Level Trend from
+ * being a flat chart.
+ */
+export const DUST_LIGHT = 0.75
+export const DUST_HEAVY = 1.3
+
 export const contaminationLevels = ["Low", "Medium", "High"] as const
 export type ContaminationLevel = (typeof contaminationLevels)[number]
 
@@ -185,8 +194,20 @@ function reportFor(asset: AssetRecord, index: number): ReportRow | undefined {
 
   const score = asset.healthScore
 
-  /* The Contamination Report is what produces the score, so the two agree */
-  const contamination: ContaminationLevel = score >= 70 ? "Low" : score >= 50 ? "Medium" : "High"
+  /*
+   * Dust thickness is what the report measures; the level is read off it, and
+   * the status is the band the score lands in. The two are close but not the
+   * same reading - a panel can carry heavy dust and still score acceptably, or
+   * sit under light dust with a hotspot that drags its score down - which is
+   * why the level is taken from the millimetres rather than from the score.
+   * Deriving both from the score made the contamination and health trends
+   * identical curves, which told the reader nothing twice.
+   */
+  const dustThickness = Math.round((0.2 + (100 - score) * 0.02 + random() * 0.35) * 100) / 100
+  const contamination: ContaminationLevel =
+    dustThickness < DUST_LIGHT ? "Low" : dustThickness < DUST_HEAVY ? "Medium" : "High"
+
+  /* The status is the score's own band: this is the report that produces it */
   const contaminationStatus: Finding = score >= 70 ? "Healthy" : score >= 50 ? "Alarming" : "At Risk"
 
   /*
@@ -227,7 +248,7 @@ function reportFor(asset: AssetRecord, index: number): ReportRow | undefined {
     healthScore: score,
     /* Ambient sits around 32 degC at these plants; a worse score reads hotter */
     hotspot: Math.round((32 + (100 - score) * 0.45 + random() * 4) * 10) / 10,
-    dustThickness: Math.round((0.2 + (100 - score) * 0.02 + random() * 0.2) * 100) / 100,
+    dustThickness,
     hygiene,
     hygieneStatus,
     hygieneOpen: hygiene.filter((p) => p.finding !== "Healthy").length,

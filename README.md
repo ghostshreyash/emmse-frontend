@@ -69,6 +69,15 @@ The three documents in `public/reports` are the client's own samples, carried
 across from EVITA, and stand in until the reporting service exists -
 `src/data/report-documents.ts` is the one place to swap them for real URLs.
 
+Above the table are the three trends from the mockup (page 34): Asset Health,
+Contamination Level and Maintenance Activity. The asset's own screen carries
+the same three for that asset alone. In every one of them **the month we are in
+is real** - counted off the rows on screen, so the charts and the table cannot
+disagree and the filters move both - while the five months before it are a
+seeded walk backwards, because the mock holds one inspection and one clean per
+asset rather than half a year of them. See `src/data/report-trends.ts`;
+`TODO(api)` marks where the monthly extraction replaces it.
+
 Demo sign-in: any password and any 6-digit code are accepted. `TSL-ENT-001` or `rahul.mehta@tatasteel.com` signs in as the enterprise admin; `kavita.iyer@tatasteel.com` as a plant maintenance supervisor, whose code goes by SMS.
 
 ### Differences from the mockup

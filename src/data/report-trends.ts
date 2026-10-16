@@ -1,0 +1,209 @@
+/**
+ * The three trends above the Reports screen (mockup page 34): Asset Health,
+ * Contamination Level and Maintenance Activity, over the last six months.
+ *
+ * **Where the figures come from.** The month we are in is real: it is counted
+ * off the very rows the table below is showing, so the charts and the table can
+ * never disagree, and narrowing the filters moves both together. The five
+ * months before it are a seeded walk backwards - the mock holds one inspection
+ * and one clean per asset, not half a year of them, so there is no history to
+ * count. The walk is deterministic and always lands on the real current month.
+ *
+ * TODO(api): replace the back-walk with GET /reports/trends once the reporting
+ * service stores the monthly extraction the client asked for ("asset score and
+ * status come from daily extraction of EVITA reports, stored as structured
+ * data"). The current-month arithmetic here stays as the check on it.
+ *
+ * The walk leans one way on purpose: the further back you look the worse the
+ * estate reads, so the trend shows the improvement maintenance is there to
+ * produce. That is a property of the stand-in, not a claim about the data.
+ */
+import { format, subMonths } from "date-fns"
+
+import { maintenanceMix, type MaintenanceMonth } from "@/data/dashboard"
+import { maintenanceTypes } from "@/data/master-data"
+import { contaminationLevels, type ContaminationLevel, type ReportRow } from "@/data/reports"
+
+/** How many months the charts cover. The mockup's own window. */
+export const TREND_MONTHS = 6
+
+export type HealthMonth = { month: string; healthy: number; alarming: number; atRisk: number }
+export type ContaminationMonth = { month: string; low: number; medium: number; high: number }
+/** One asset's own score, month by month */
+export type ScoreMonth = { month: string; score: number }
+/** One asset's own dust reading, and the level that lands in */
+export type DustMonth = { month: string; dust: number; level: ContaminationLevel }
+
+/** The last six month names, oldest first, ending with the month we are in */
+export function trendMonths(count = TREND_MONTHS): string[] {
+  const now = new Date()
+  return Array.from({ length: count }, (_, i) => format(subMonths(now, count - 1 - i), "MMM"))
+}
+
+/** The same seeded generator the rest of the mock data uses, so nothing moves between renders */
+function seeded(seed: number) {
+  let s = seed >>> 0
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0
+    return s / 2 ** 32
+  }
+}
+
+const keyOf = (text: string) => [...text].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7)
+
+/**
+ * Walk a three-way split backwards through the months.
+ *
+ * The total stays put - the estate does not gain or lose assets month to month -
+ * and what moves is the share: going back, assets shift out of `good` and into
+ * `fair` and `poor`. Everything is clamped so no bucket goes negative and the
+ * three always add back up to the total, which is what makes the stacked bars
+ * and the lines agree with the count above them.
+ */
+function shiftBack(good: number, fair: number, poor: number, months: string[], seed: number) {
+  const total = good + fair + poor
+  const random = seeded(seed)
+
+  return months.map((month, i) => {
+    /* The last entry is the month we are in, and that one is the real count */
+    const back = months.length - 1 - i
+    if (!back) return { month, good, fair, poor, total }
+
+    /* A few assets per month back, nudged so the line is not a ruler */
+    const moved = Math.min(good, Math.round(back * (total * 0.03) + random() * 2))
+    const toPoor = Math.min(Math.round(moved * 0.4), moved)
+
+    return {
+      month,
+      good: good - moved,
+      fair: fair + (moved - toPoor),
+      poor: poor + toPoor,
+      total,
+    }
+  })
+}
+
+/* ---------- Enterprise-wide: the rows the table is showing ---------- */
+
+/** How many assets sit in each health band this month, and how that got there */
+export function healthTrend(rows: ReportRow[], months = trendMonths()): HealthMonth[] {
+  const count = (finding: string) => rows.filter((r) => r.contaminationStatus === finding).length
+  return shiftBack(count("Healthy"), count("Alarming"), count("At Risk"), months, 4703 + rows.length).map((m) => ({
+    month: m.month,
+    healthy: m.good,
+    alarming: m.fair,
+    atRisk: m.poor,
+  }))
+}
+
+/**
+ * How many assets are carrying how much dust. A separate reading from the
+ * health bands above - see the note on `contamination` in data/reports - so the
+ * two charts are not one curve drawn twice.
+ */
+export function contaminationTrend(rows: ReportRow[], months = trendMonths()): ContaminationMonth[] {
+  const count = (level: ContaminationLevel) => rows.filter((r) => r.contamination === level).length
+  return shiftBack(count("Low"), count("Medium"), count("High"), months, 8821 + rows.length).map((m) => ({
+    month: m.month,
+    low: m.good,
+    medium: m.fair,
+    high: m.poor,
+  }))
+}
+
+/**
+ * Maintenance carried out, by type, month by month.
+ *
+ * Counted off the cleans behind the cleaning reports in view, which is the
+ * maintenance this screen can actually account for. Unlike the two above, the
+ * total is not fixed - some months carry more work than others - so this one
+ * scales rather than shifts, and the month we are in is the real count.
+ */
+export function maintenanceTrend(rows: ReportRow[], months = trendMonths()): MaintenanceMonth[] {
+  const done = rows.map((r) => r.maintenance).filter(Boolean)
+  const counts = maintenanceTypes.map((type) => done.filter((m) => m!.type === type).length)
+  const random = seeded(6577 + rows.length)
+
+  return months.map((month, i) => {
+    const back = months.length - 1 - i
+    const row = { month } as MaintenanceMonth
+    maintenanceMix.forEach((series, n) => {
+      /* Earlier months ran a little lighter, so the bars build towards today */
+      row[series.key] = back ? Math.max(0, Math.round(counts[n] * (1 - back * 0.08) - random() * 1.5)) : counts[n]
+    })
+    return row
+  })
+}
+
+/* ---------- One asset ---------- */
+
+/**
+ * One asset's health score over the six months.
+ *
+ * The month we are in is the score the asset actually holds; before that it
+ * climbs back towards where it was, with the clean - when there has been one -
+ * as the step up. A single asset has one reading, not a distribution, so this
+ * is a line of its score rather than a count of bands.
+ */
+export function assetScoreTrend(row: ReportRow, months = trendMonths()): ScoreMonth[] {
+  const random = seeded(keyOf(row.asset.tagId))
+  return months.map((month, i) => {
+    const back = months.length - 1 - i
+    if (!back) return { month, score: row.healthScore }
+    /* Worse the further back, bounded so a strong asset never reads as failing */
+    const drop = back * 2.5 + random() * 3
+    return { month, score: Math.max(12, Math.min(100, Math.round(row.healthScore - drop))) }
+  })
+}
+
+/**
+ * One asset's dust reading over the six months, in millimetres, each month
+ * carrying the level that reading falls in so the bars can be coloured by it.
+ *
+ * Dust builds until the panel is cleaned, so this runs the other way from the
+ * score: heavier going back, and the current month is the reading on the
+ * report. The thresholds are the register's own - see DUST_LIGHT / DUST_HEAVY.
+ */
+export function assetDustTrend(row: ReportRow, months = trendMonths()): DustMonth[] {
+  const random = seeded(keyOf(row.asset.tagId) + 31)
+  const levelAt = (dust: number): ContaminationLevel => {
+    const [low, medium, high] = contaminationLevels
+    return dust < 0.75 ? low : dust < 1.3 ? medium : high
+  }
+
+  return months.map((month, i) => {
+    const back = months.length - 1 - i
+    if (!back) return { month, dust: row.dustThickness, level: row.contamination }
+    const dust = Math.round((row.dustThickness + back * 0.12 + random() * 0.1) * 100) / 100
+    return { month, dust, level: levelAt(dust) }
+  })
+}
+
+/**
+ * One asset's maintenance over the six months, by type.
+ *
+ * A single asset has one or two jobs a year, not a bar every month, so most
+ * months are empty and that is the honest picture - the chart is there to show
+ * when the asset was last touched and with what, not to fill a canvas. The
+ * month of the asset's own clean carries it; the rest are seeded stand-ins for
+ * the history the mock does not hold.
+ */
+export function assetMaintenanceTrend(row: ReportRow, months = trendMonths()): MaintenanceMonth[] {
+  const random = seeded(keyOf(row.asset.tagId) + 97)
+  /* Which series the asset's own clean belongs to */
+  const ownSeries = row.maintenance ? maintenanceTypes.indexOf(row.maintenance.type) : -1
+
+  return months.map((month, i) => {
+    const back = months.length - 1 - i
+    const out = { month } as MaintenanceMonth
+    maintenanceMix.forEach((series, n) => {
+      if (!back) {
+        out[series.key] = n === ownSeries ? 1 : 0
+        return
+      }
+      /* Roughly one job every few months, landing on one series at a time */
+      out[series.key] = random() < 0.12 ? 1 : 0
+    })
+    return out
+  })
+}

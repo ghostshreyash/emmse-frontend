@@ -6,6 +6,7 @@ import { cn } from "cn"
 import { SortHead, TablePager } from "@/components/common/data-table"
 import { DocumentDialog, type OpenDocument } from "@/components/common/document-dialog"
 import { PageHeader } from "@/components/common/page-header"
+import { ContaminationTrend, HealthTrend, MaintenanceTrend } from "@/components/common/trend-charts"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +16,7 @@ import { plants } from "@/data/dashboard"
 import { healthBandFor } from "@/data/master-data"
 import { criticalityTone } from "@/data/operations"
 import { reportDocuments, type ReportKind } from "@/data/report-documents"
+import { contaminationTrend, healthTrend, maintenanceTrend } from "@/data/report-trends"
 import { findingLook, findings, reportRows, type Finding, type ReportRow } from "@/data/reports"
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
@@ -135,6 +137,17 @@ export function ReportsPage() {
 
   const sorted = useMemo(() => sortRows(filtered, sort, sortValue), [filtered, sort])
 
+  /*
+   * The charts read the filtered set, not the whole register, so what is drawn
+   * above the table is always what the table is showing - pick one plant and
+   * the trends follow it down. Sorting and paging do not touch them: the same
+   * rows in a different order are the same month.
+   */
+  const trends = useMemo(
+    () => ({ health: healthTrend(filtered), contamination: contaminationTrend(filtered), maintenance: maintenanceTrend(filtered) }),
+    [filtered]
+  )
+
   const pages = Math.max(1, Math.ceil(sorted.length / pageSize))
   // Narrowing the results can strand the viewer past the last page, so clamp on read
   const current = Math.min(page, pages)
@@ -178,6 +191,13 @@ export function ReportsPage() {
           </>
         }
       />
+
+      {/* The three trends from the mockup, over whatever the filters have narrowed to */}
+      <div className="mb-4 grid gap-3 xl:grid-cols-3">
+        <HealthTrend data={trends.health} />
+        <ContaminationTrend data={trends.contamination} />
+        <MaintenanceTrend data={trends.maintenance} />
+      </div>
 
       <section className="flex flex-col rounded-lg bg-card text-card-foreground shadow-xs ring-1 ring-foreground/10">
         {/* Search hard left, filters centred, clear hard right — as on Tasks and Inspections */}
