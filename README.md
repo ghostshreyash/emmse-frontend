@@ -69,6 +69,13 @@ The three documents in `public/reports` are the client's own samples, carried
 across from EVITA, and stand in until the reporting service exists -
 `src/data/report-documents.ts` is the one place to swap them for real URLs.
 
+An asset's own screen lists its **whole report history**, newest first, rather
+than its latest three: two reports off every inspection and one off every
+clean, each row linking to the activity that produced it. The rows are built
+from the inspection and task books, so every id opens a real record whose date
+and ELPREMAR match the row. The current reading is the row marked Latest - the
+one the cards, the charts and the two report panels are showing.
+
 Above the table sit the activity totals - total maintenance, each programme,
 and total inspections - and under them the three trends from the mockup
 (page 34): Asset Health, Contamination Level and Maintenance Activity. The

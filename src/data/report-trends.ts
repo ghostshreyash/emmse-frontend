@@ -21,8 +21,11 @@
 import { format, subMonths } from "date-fns"
 
 import { maintenanceMix, type MaintenanceMonth } from "@/data/dashboard"
+import { inspections } from "@/data/inspections"
 import { maintenanceTypes } from "@/data/master-data"
-import { contaminationLevels, type ContaminationLevel, type ReportRow } from "@/data/reports"
+import type { ReportKind } from "@/data/report-documents"
+import { contaminationLevels, type ContaminationLevel, type Finding, type ReportRow } from "@/data/reports"
+import { tasks } from "@/data/tasks"
 
 /** How many months the charts cover. The mockup's own window. */
 export const TREND_MONTHS = 6
@@ -249,4 +252,148 @@ export function activityTotals(months: MaintenanceMonth[], inspections: number):
     firePreventive,
     inspections,
   }
+}
+
+/* ---------- One asset's report history ---------- */
+
+/**
+ * Every report an asset has accumulated, not only its latest three.
+ *
+ * Built from the books rather than invented: the inspections and tasks that
+ * actually sit at the asset's plant against its own category, which is the same
+ * pool the current report was read off. That matters because each row links to
+ * its activity - a fabricated id would either open nothing or, worse, open
+ * somebody else's record, and the dates and the ELPREMAR on the row have to be
+ * the ones that activity really carries.
+ *
+ * One inspection produces two reports, contamination and hygiene; one clean
+ * produces one. Newest first, with the current reading marked - the figures
+ * elsewhere on the screen belong to the entries flagged `latest`.
+ *
+ * The readings on older entries are a seeded walk back from today's, for the
+ * same reason the trends are: the mock holds one set of figures per asset, not
+ * a year of them. TODO(api): GET /assets/:id/reports replaces the walk.
+ */
+export type ReportHistoryEntry = {
+  /** Stable key: the activity and which report off it */
+  id: string
+  kind: ReportKind
+  source: "Inspection" | "Maintenance"
+  activityId: string
+  activityTo: string
+  activityType: string
+  by: string
+  /** dd-MM-yyyy */
+  on: string
+  nextDue: string
+  /** What that report said — whichever of these its kind carries */
+  score?: number
+  status?: Finding
+  level?: ContaminationLevel
+  hygieneOpen?: number
+  /** The most recent of its kind, and so the one the rest of the screen shows */
+  latest: boolean
+}
+
+/** dd-MM-yyyy → sortable number, newest largest */
+const onDate = (dmy: string) => {
+  const [d, m, y] = dmy.split("-")
+  return Number(`${y}${m}${d}`)
+}
+
+/** dd-MM-yyyy, months on */
+function monthsOn(dmy: string, months: number) {
+  const [d, m, y] = dmy.split("-").map(Number)
+  const date = new Date(y, m - 1 + months, d)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${pad(date.getDate())}-${pad(date.getMonth() + 1)}-${date.getFullYear()}`
+}
+
+/** How many earlier activities of each kind the history reaches back over */
+const HISTORY_INSPECTIONS = 4
+const HISTORY_CLEANS = 3
+
+/**
+ * The completed work at this asset's plant, preferring its own category, that
+ * happened **before** the activity the current figures came off. Anything later
+ * is left out: it would contradict the reading the screen is showing.
+ */
+function earlierThan<T extends { id: string; plant: string; asset: string; status: string }>(
+  book: T[],
+  row: ReportRow,
+  on: (item: T) => string,
+  before: string,
+  excludeId: string,
+  take: number
+) {
+  const atPlant = book.filter((item) => item.plant === row.asset.plant && item.status === "completed")
+  const pool = atPlant.filter((item) => item.asset.startsWith(row.asset.category))
+  return (pool.length ? pool : atPlant)
+    .filter((item) => item.id !== excludeId && onDate(on(item)) < onDate(before))
+    .sort((a, b) => onDate(on(b)) - onDate(on(a)))
+    .slice(0, take)
+}
+
+export function assetReportHistory(row: ReportRow): ReportHistoryEntry[] {
+  const random = seeded(keyOf(row.asset.tagId) + 17)
+  const entries: ReportHistoryEntry[] = []
+
+  /* --- what the inspections said --- */
+  const olderInspections = earlierThan(inspections, row, (i) => i.due, row.inspection.on, row.inspection.id, HISTORY_INSPECTIONS)
+  const visits = [{ ...row.inspection, latest: true }, ...olderInspections.map((i) => ({ id: i.id, activity: i.activity, elpremar: i.elpremar, on: i.due, latest: false }))]
+
+  visits.forEach((visit, back) => {
+    /* Older visits read worse, which is what the maintenance since was for */
+    const score = visit.latest ? row.healthScore : Math.max(12, Math.min(100, Math.round(row.healthScore - back * 4 - random() * 4)))
+    const status: Finding = score >= 70 ? "Healthy" : score >= 50 ? "Alarming" : "At Risk"
+    const dust = visit.latest ? row.dustThickness : row.dustThickness + back * 0.2 + random() * 0.15
+    const level: ContaminationLevel = dust < 0.75 ? "Low" : dust < 1.3 ? "Medium" : "High"
+
+    const shared = {
+      source: "Inspection" as const,
+      activityId: visit.id,
+      activityTo: `/inspection-activities/${visit.id}`,
+      activityType: visit.activity,
+      by: visit.elpremar,
+      on: visit.on,
+      nextDue: monthsOn(visit.on, row.frequency),
+      latest: visit.latest,
+    }
+
+    entries.push({ ...shared, id: `${visit.id}-contamination`, kind: "contamination", score, status, level })
+    entries.push({
+      ...shared,
+      id: `${visit.id}-hygiene`,
+      kind: "hygiene",
+      hygieneOpen: visit.latest ? row.hygieneOpen : Math.min(row.hygiene.length, back + Math.floor(random() * 3)),
+    })
+  })
+
+  /* --- and what the cleans produced --- */
+  if (row.maintenance) {
+    const olderCleans = earlierThan(tasks, row, (t) => t.scheduled, row.maintenance.on, row.maintenance.id, HISTORY_CLEANS)
+    const cleans = [
+      { ...row.maintenance, latest: true },
+      ...olderCleans.map((t) => ({ id: t.id, type: t.type, elpremar: t.elpremar, on: t.scheduled, latest: false })),
+    ]
+
+    for (const clean of cleans) {
+      entries.push({
+        id: `${clean.id}-cleaning`,
+        kind: "cleaning",
+        source: "Maintenance",
+        activityId: clean.id,
+        activityTo: `/tasks/${clean.id}`,
+        activityType: clean.type,
+        by: clean.elpremar,
+        on: clean.on,
+        /* A clean is good for a quarter, whatever the inspection cycle is */
+        nextDue: monthsOn(clean.on, 3),
+        latest: clean.latest,
+      })
+    }
+  }
+
+  /* Newest first, and a stable tie-break so two reports off one visit keep their order */
+  return entries.sort((a, b) => onDate(b.on) - onDate(a.on) || a.id.localeCompare(b.id))
 }

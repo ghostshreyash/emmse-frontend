@@ -15,13 +15,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { healthBandFor } from "@/data/master-data"
 import { criticalityTone } from "@/data/operations"
-import { hasReport, reportDocuments, type ReportDocument } from "@/data/report-documents"
+import { reportDocuments, type ReportDocument, type ReportKind } from "@/data/report-documents"
 import {
   activityTotals,
   assetDustTrend,
   assetMaintenanceTrend,
+  assetReportHistory,
   assetScoreTrend,
   inspectionsInWindow,
+  type ReportHistoryEntry,
 } from "@/data/report-trends"
 import { contaminationTone, findingLook, findReport } from "@/data/reports"
 import { control, td, th } from "@/lib/data-table"
@@ -40,32 +42,24 @@ const ANY = "all"
 const sources = ["Inspection", "Maintenance"] as const
 type Source = (typeof sources)[number]
 
-/** One line of the reports table: a document, and the activity behind it */
-type ReportLine = {
-  document: ReportDocument
-  source: Source
-  /** The Inspection ID or Task ID, and the screen it opens */
-  activityId?: string
-  activityTo?: string
-  activityType?: string
-  by?: string
-  on?: string
-  nextDue?: string
-  /** What the report says about this asset, as a pill */
-  finding: React.ReactNode
-  available: boolean
-}
+/** The three documents by kind, so a history entry can name its own one */
+const documentFor = Object.fromEntries(reportDocuments.map((d) => [d.kind, d])) as Record<ReportKind, ReportDocument>
 
 /**
- * One asset's report record: what the register holds about it, the documents
- * against it, what each one says, and how it has moved over six months.
+ * One asset's report record: what the register holds about it, every report
+ * raised against it, what each one said, and how it has moved over six months.
  *
- * The three documents are a table rather than a list, because each carries more
- * than its own name: which activity produced it, what type that activity was,
- * who carried it out, when, and when the next one falls due. Those used to sit
- * in three cards down the side - Read Off Inspection, Cleaning, Inspection
- * Schedule - which meant reading a report in one place and its provenance in
- * another. One row per report says it once, beside the report it belongs to.
+ * The reports are a table because each row carries more than a document name:
+ * which activity produced it, what type that activity was, who carried it out,
+ * when, and when the next one falls due. Those used to sit in three cards down
+ * the side - Read Off Inspection, Cleaning, Inspection Schedule - which meant
+ * reading a report in one place and its provenance in another.
+ *
+ * And it is the whole history rather than the latest three, newest first: an
+ * asset's record is the run of readings, and a single contamination report says
+ * nothing about whether the panel is getting better or worse. The current
+ * reading is the row marked Latest - that is the one the cards, the charts and
+ * the two report panels below are showing.
  */
 export function ReportDetailsPage() {
   const { assetId } = useParams()
@@ -91,7 +85,7 @@ export function ReportDetailsPage() {
     )
   }
 
-  const { asset, maintenance, inspection } = row
+  const { asset, maintenance } = row
   const band = healthBandFor(row.healthScore)
 
   /* Seeded off the asset, so its trends and totals do not move between visits */
@@ -100,61 +94,22 @@ export function ReportDetailsPage() {
   const maintenanceMonths = assetMaintenanceTrend(row)
   const totals = activityTotals(maintenanceMonths, inspectionsInWindow(row.frequency))
 
-  /**
-   * The three documents, each with the activity it came off.
-   *
-   * Contamination and hygiene are both read off the same inspection, so they
-   * carry the same Inspection ID and the same next-due date. That is the point
-   * of the column rather than a duplication to tidy away: the two reports are
-   * one visit's worth of findings.
+  /*
+   * Every report this asset has, newest first - two off each inspection and one
+   * off each clean - rather than only its latest three. The entries marked
+   * `latest` are the ones the figures elsewhere on this screen belong to.
    */
-  const lines: ReportLine[] = reportDocuments.map((document) => {
-    const isClean = document.kind === "cleaning"
-    const available = hasReport(document.kind, !!maintenance)
+  const history = assetReportHistory(row)
 
-    const finding =
-      document.kind === "contamination" ? (
-        <span className={cn("rounded px-1.5 py-0.5 text-[0.65rem] font-semibold", contaminationTone[row.contamination])}>
-          {row.contamination} · {row.contaminationStatus}
-        </span>
-      ) : document.kind === "hygiene" ? (
-        <Badge variant={findingLook[row.hygieneStatus].badge} className="rounded px-1.5 py-0 text-[0.65rem]">
-          {row.hygieneOpen ? `${row.hygieneOpen} of ${row.hygiene.length} open` : "All points clear"}
-        </Badge>
-      ) : (
-        <Badge variant={available ? "success" : "neutral"} className="rounded px-1.5 py-0 text-[0.65rem]">
-          {available ? "Cleaned" : "Not cleaned yet"}
-        </Badge>
-      )
+  const shown = history.filter((entry) => source === ANY || entry.source === source)
 
-    return isClean
-      ? {
-          document,
-          source: "Maintenance",
-          activityId: maintenance?.id,
-          activityTo: maintenance && `/tasks/${maintenance.id}`,
-          activityType: maintenance?.type,
-          by: maintenance?.elpremar,
-          on: maintenance?.on,
-          nextDue: row.nextCleaningDue || undefined,
-          finding,
-          available,
-        }
-      : {
-          document,
-          source: "Inspection",
-          activityId: inspection.id,
-          activityTo: `/inspection-activities/${inspection.id}`,
-          activityType: inspection.activity,
-          by: inspection.elpremar,
-          on: inspection.on,
-          nextDue: row.nextInspectionDue,
-          finding,
-          available,
-        }
-  })
-
-  const shown = lines.filter((line) => source === ANY || line.source === source)
+  /*
+   * An asset with no clean yet holds no cleaning report, so the history has no
+   * row for one. Keep a line saying so rather than letting the document go
+   * missing without explanation - the record reads as three kinds of report
+   * with one outstanding.
+   */
+  const awaitingClean = !maintenance && (source === ANY || source === "Maintenance")
 
   const openReport = (document: ReportDocument) =>
     setOpen({
@@ -247,72 +202,98 @@ export function ReportDetailsPage() {
                 <TableHead className={th}>Activity ID</TableHead>
                 <TableHead className={th}>Type</TableHead>
                 <TableHead className={th}>Carried Out By</TableHead>
-                <TableHead className={th}>Reported On</TableHead>
+                <TableHead className={th}>Reported On ↓</TableHead>
                 <TableHead className={th}>Next Due</TableHead>
                 <TableHead className={th}>Finding</TableHead>
                 <TableHead className={cn(th, "text-right")}>Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {shown.map((line) => (
-                <TableRow key={line.document.kind}>
-                  <TableCell className={cn(td, "min-w-52")}>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "flex size-7 shrink-0 items-center justify-center rounded-lg",
-                          line.available ? "bg-critical-soft text-critical" : "bg-muted text-muted-foreground"
-                        )}
+              {shown.map((entry) => {
+                const document = documentFor[entry.kind]
+                return (
+                  <TableRow key={entry.id}>
+                    <TableCell className={cn(td, "min-w-52")}>
+                      <span className="flex items-center gap-2">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-critical-soft text-critical">
+                          <FileText className="size-3.5" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-1.5">
+                            <span className="font-medium">{document.title}</span>
+                            {/* The reading the rest of the screen is showing came off this one */}
+                            {entry.latest ? (
+                              <Badge variant="success" className="rounded px-1 py-0 text-[0.6rem]">Latest</Badge>
+                            ) : null}
+                          </span>
+                          <span className="block truncate text-[0.65rem] text-muted-foreground">{document.detail}</span>
+                        </span>
+                      </span>
+                    </TableCell>
+                    <TableCell className={td}>
+                      <Badge
+                        variant={entry.source === "Inspection" ? "info" : "highlight"}
+                        className="rounded px-1.5 py-0 text-[0.65rem]"
                       >
-                        <FileText className="size-3.5" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block font-medium">{line.document.title}</span>
-                        <span className="block truncate text-[0.65rem] text-muted-foreground">{line.document.detail}</span>
-                      </span>
-                    </span>
-                  </TableCell>
-                  <TableCell className={td}>
-                    <Badge
-                      variant={line.source === "Inspection" ? "info" : "highlight"}
-                      className="rounded px-1.5 py-0 text-[0.65rem]"
-                    >
-                      {line.source}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className={cn(td, "whitespace-nowrap")}>
-                    {line.activityId && line.activityTo ? (
-                      <Link to={line.activityTo} className="font-medium tabular-nums text-primary hover:underline">
-                        {line.activityId}
+                        {entry.source}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className={cn(td, "whitespace-nowrap")}>
+                      <Link to={entry.activityTo} className="font-medium tabular-nums text-primary hover:underline">
+                        {entry.activityId}
                       </Link>
-                    ) : (
-                      none
-                    )}
-                  </TableCell>
-                  <TableCell className={td}>{line.activityType ?? none}</TableCell>
-                  <TableCell className={td}>{line.by ?? none}</TableCell>
-                  <TableCell className={cn(td, "tabular-nums whitespace-nowrap")}>{line.on ?? none}</TableCell>
-                  <TableCell className={cn(td, "tabular-nums whitespace-nowrap")}>{line.nextDue ?? none}</TableCell>
-                  <TableCell className={cn(td, "whitespace-nowrap")}>{line.finding}</TableCell>
-                  <TableCell className={cn(td, "text-right whitespace-nowrap")}>
-                    {line.available ? (
+                    </TableCell>
+                    <TableCell className={td}>{entry.activityType}</TableCell>
+                    <TableCell className={td}>{entry.by}</TableCell>
+                    <TableCell className={cn(td, "tabular-nums whitespace-nowrap")}>{entry.on}</TableCell>
+                    <TableCell className={cn(td, "tabular-nums whitespace-nowrap")}>{entry.nextDue}</TableCell>
+                    <TableCell className={cn(td, "whitespace-nowrap")}><Finding entry={entry} /></TableCell>
+                    <TableCell className={cn(td, "text-right whitespace-nowrap")}>
                       <span className="inline-flex items-center gap-1.5">
-                        <Button variant="outline" size="xs" className="bg-card" onClick={() => openReport(line.document)}>
+                        <Button variant="outline" size="xs" className="bg-card" onClick={() => openReport(document)}>
                           <Eye className="size-3" /> View
                         </Button>
                         <Button variant="outline" size="xs" className="bg-card" asChild>
-                          <a href={line.document.file} download={line.document.fileName(asset.tagId)}>
+                          <a href={document.file} download={document.fileName(asset.tagId)}>
                             <Download className="size-3" /> Download
                           </a>
                         </Button>
                       </span>
-                    ) : (
-                      <span className="text-[0.7rem] text-muted-foreground">Raised once cleaned</span>
-                    )}
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+
+              {/* The document this asset has not earned yet */}
+              {awaitingClean ? (
+                <TableRow>
+                  <TableCell className={cn(td, "min-w-52")}>
+                    <span className="flex items-center gap-2">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                        <FileText className="size-3.5" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-medium">{documentFor.cleaning.title}</span>
+                        <span className="block truncate text-[0.65rem] text-muted-foreground">
+                          Raised once this asset has been cleaned
+                        </span>
+                      </span>
+                    </span>
+                  </TableCell>
+                  <TableCell className={td}>
+                    <Badge variant="neutral" className="rounded px-1.5 py-0 text-[0.65rem]">Maintenance</Badge>
+                  </TableCell>
+                  <TableCell className={td} colSpan={5}>{none}</TableCell>
+                  <TableCell className={cn(td, "whitespace-nowrap")}>
+                    <Badge variant="neutral" className="rounded px-1.5 py-0 text-[0.65rem]">Not cleaned yet</Badge>
+                  </TableCell>
+                  <TableCell className={cn(td, "text-right whitespace-nowrap")}>
+                    <span className="text-[0.7rem] text-muted-foreground">Raised once cleaned</span>
                   </TableCell>
                 </TableRow>
-              ))}
-              {shown.length === 0 ? (
+              ) : null}
+
+              {!shown.length && !awaitingClean ? (
                 <TableRow>
                   <TableCell colSpan={9} className="py-8 text-center text-xs text-muted-foreground">
                     No report on this asset came off a {source.toLowerCase()}.
@@ -389,4 +370,36 @@ export function ReportDetailsPage() {
       <DocumentDialog document={open} onClose={() => setOpen(null)} />
     </div>
   )
+}
+
+/**
+ * What one report said about the asset, in the wording its own kind uses: the
+ * contamination report scores, the hygiene report counts points, and a cleaning
+ * report either happened or has not yet.
+ */
+function Finding({ entry }: { entry: ReportHistoryEntry }) {
+  if (entry.kind === "contamination" && entry.status && entry.level) {
+    return (
+      <span className="flex items-center gap-1.5">
+        <span className={cn("rounded px-1.5 py-0.5 text-[0.65rem] font-semibold", contaminationTone[entry.level])}>
+          {entry.level}
+        </span>
+        <span className="text-[0.7rem] text-muted-foreground">
+          {entry.status} · <span className="tabular-nums">{entry.score}</span>
+        </span>
+      </span>
+    )
+  }
+  if (entry.kind === "hygiene") {
+    const open = entry.hygieneOpen ?? 0
+    return (
+      <Badge
+        variant={open > 2 ? "critical" : open ? "attention" : "healthy"}
+        className="rounded px-1.5 py-0 text-[0.65rem]"
+      >
+        {open ? `${open} of 8 open` : "All points clear"}
+      </Badge>
+    )
+  }
+  return <Badge variant="success" className="rounded px-1.5 py-0 text-[0.65rem]">Cleaned</Badge>
 }
