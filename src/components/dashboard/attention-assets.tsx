@@ -5,13 +5,13 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SectionCard } from "@/components/common/section-card"
-import { maintenanceTypes, type AttentionAsset } from "@/data/dashboard"
+import { maintenanceMix, type AttentionAsset } from "@/data/dashboard"
 import { healthStatus } from "@/lib/status"
 
 const th = "h-7 px-2 text-[0.65rem] font-semibold"
 const td = "px-2 py-1.5 text-xs"
 
-const activityColor = Object.fromEntries(maintenanceTypes.map((t) => [t.label, t.color]))
+const activityColor: Record<string, string> = Object.fromEntries(maintenanceMix.map((t) => [t.label, t.color]))
 
 /**
  * Recent Assets Requiring Attention. The mockup labels the first column "Asset

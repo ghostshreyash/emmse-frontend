@@ -19,21 +19,20 @@ import { plants } from "@/data/dashboard"
 import { useInspectionDetails, useInspectionRows } from "@/data/inspection-store"
 import { assetCategories, crew } from "@/data/operations"
 import { addTask, useTaskRows } from "@/data/task-store"
-import type { TaskType } from "@/data/tasks"
+import { taskTypes, type TaskType } from "@/data/tasks"
 import { useAuth } from "@/lib/auth/context"
 import { healthStatus } from "@/lib/status"
 
 /* ---------- Options ---------- */
 
-const maintenanceKinds = ["Routine Cleaning", "Corrective Maintenance", "Condition Based"] as const
-type MaintenanceKind = (typeof maintenanceKinds)[number]
-
-/** How each box on the form files into the Tasks list's Type column */
-const kindToType: Record<MaintenanceKind, TaskType> = {
-  "Routine Cleaning": "Preventive",
-  "Corrective Maintenance": "Corrective",
-  "Condition Based": "Condition-Based",
-}
+/**
+ * The Maintenance Type boxes. These are the parameter sheet's own three values,
+ * so what is ticked here is what the Tasks list shows in its Type column - the
+ * form used to offer a third set of names ("Routine Cleaning", "Corrective
+ * Maintenance") and map them across.
+ */
+const maintenanceKinds = taskTypes
+type MaintenanceKind = TaskType
 
 const instaFluids = [
   { name: "INSTA 50", hint: "Light contamination" },
@@ -368,7 +367,7 @@ export function AddTaskPage() {
       {
         asset: form.assetName.trim(),
         plant: form.plant,
-        type: kindToType[form.kinds[0]],
+        type: form.kinds[0],
         elpremar: form.performedBy,
         scheduled,
         // Booked intervals run 09:00-18:00, so an out-of-hours start files at the nearest one

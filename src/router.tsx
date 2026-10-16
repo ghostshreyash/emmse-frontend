@@ -17,11 +17,15 @@ import { TaskDetailsPage } from "@/pages/task-details"
 import { TasksPage } from "@/pages/tasks"
 import { AddTaskPage } from "@/pages/add-task"
 import { InspectionsPage } from "@/pages/inspections"
+import { ReportsPage } from "@/pages/reports"
+import { ReportDetailsPage } from "@/pages/report-details"
+import { SupportTicketsPage } from "@/pages/support-tickets"
+import { SupportTicketDetailsPage } from "@/pages/support-ticket-details"
 import { InspectionDetailsPage } from "@/pages/inspection-details"
 import { AddInspectionPage } from "@/pages/add-inspection"
 
 /** Sections with a real screen; every other section gets a placeholder page */
-const built = new Set(["/", "/tasks", "/inspection-activities"])
+const built = new Set(["/", "/tasks", "/inspection-activities", "/reports", "/support-tickets"])
 
 export const router = createBrowserRouter([
   { path: "/login", element: <PublicOnly><LoginPage /></PublicOnly> },
@@ -48,6 +52,11 @@ export const router = createBrowserRouter([
           { path: "inspection-activities", element: <InspectionsPage /> },
           { path: "inspection-activities/add", element: <AddInspectionPage /> },
           { path: "inspection-activities/:id", element: <InspectionDetailsPage /> },
+          { path: "reports", element: <ReportsPage /> },
+          // One asset's record: its detail and the three documents against it
+          { path: "reports/:assetId", element: <ReportDetailsPage /> },
+          { path: "support-tickets", element: <SupportTicketsPage /> },
+          { path: "support-tickets/:id", element: <SupportTicketDetailsPage /> },
           // Remaining sections show a placeholder until their screens are built
           ...Object.values(sections)
             .filter((item) => !built.has(item.path))

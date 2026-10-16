@@ -6,15 +6,18 @@
  */
 import { plants } from "@/data/dashboard"
 import { inspections, type InspectionRow } from "@/data/inspections"
+import { maintenanceTypes, type MaintenanceType } from "@/data/master-data"
 import { assetCategories, crew, day, daySlots, seeded, units } from "@/data/operations"
 import type { WorkStatus } from "@/lib/status"
 
-/** The maintenance programmes a task can belong to */
-export const taskTypes = ["Preventive", "Corrective", "Condition-Based", "Fire Preventive"] as const
-export type TaskType = (typeof taskTypes)[number]
-
-/** What the mock book is drawn from: planned programmes only, no corrective work */
-const plannedTypes: TaskType[] = ["Preventive", "Condition-Based", "Fire Preventive"]
+/**
+ * The maintenance programmes a task can belong to: the parameter sheet's
+ * Maintenance Type, in the sheet's own wording. The screens used to shorten
+ * these ("Preventive", "Condition-Based") and to carry a "Corrective" type the
+ * sheet does not list — both are gone, and every type now comes from this list.
+ */
+export const taskTypes = maintenanceTypes
+export type TaskType = MaintenanceType
 
 /** The mock book is raised already signed off, so none of it waits in "open" */
 const workStates: WorkStatus[] = ["assigned", "in_progress", "completed"]
@@ -69,7 +72,7 @@ function generateTasks(count: number): TaskRow[] {
       id: `MT-${2291 - i}`,
       asset: `${pick(assetCategories)} - ${pick(units)}`,
       plant,
-      type: pick(plannedTypes),
+      type: pick(taskTypes),
       elpremar,
       scheduled,
       slot,

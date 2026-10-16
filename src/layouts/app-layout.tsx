@@ -4,6 +4,7 @@ import { Leaf } from "lucide-react"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/app-sidebar"
 import { Topbar } from "@/components/layout/topbar"
+import { HelpBot } from "@/components/common/help-bot"
 
 export function AppLayout() {
   return (
@@ -26,6 +27,8 @@ export function AppLayout() {
           </span>
         </footer>
       </SidebarInset>
+      {/* Mounted once, so the conversation survives moving between screens */}
+      <HelpBot />
     </SidebarProvider>
   )
 }

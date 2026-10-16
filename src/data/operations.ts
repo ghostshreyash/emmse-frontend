@@ -7,6 +7,7 @@
 import { addDays, format } from "date-fns"
 
 import { enterpriseInfo, plants } from "@/data/dashboard"
+import { inspectionTypes, type AssetCriticality } from "@/data/master-data"
 
 /** dd-MM-yyyy, offset from today, so the books always sit around the current date */
 export const day = (offset: number) => format(addDays(new Date(), offset), "dd-MM-yyyy")
@@ -43,16 +44,24 @@ export function slotFor(key: string) {
 export const priorities = ["Low", "Medium", "High", "Critical"] as const
 export type Priority = (typeof priorities)[number]
 
-/** How badly a failure on the asset would hurt */
-export const assetCriticality = ["High", "Medium", "Low"] as const
-export type AssetCriticality = (typeof assetCriticality)[number]
+/**
+ * How badly a failure on the asset would hurt. The list itself is the parameter
+ * sheet's Asset Criticality, held in master-data beside the other sheet
+ * vocabularies; it is re-exported here because this is where the screens that
+ * use it already reach for their pools.
+ */
+export { assetCriticality, type AssetCriticality } from "@/data/master-data"
 
 export const areas = ["Main Substation (11kV)", "LT Panels - Block A", "DG Set Area", "Production Floor", "Utility Area", "Cable Trench"]
 export const assetCategories = ["LT Panel", "HT Panel", "APFC Panel", "MCC", "PCC", "PDB", "Switchboard", "Transformer", "UPS", "Distribution Board", "Control Panel", "Fire Alarm Panel"]
 export const units = ["Block A", "Block B", "Unit 1", "Unit 2", "Unit 3", "Main", "Incomer 1", "Incomer 2", "T1", "T2", "SB1", "SB2"]
 
-/** The inspection work an ELPREMAR can be sent out on — also what the Activity column shows */
-export const activityTypes = ["Visual Inspection", "Thermal Inspection", "Fire Prevention System Inspection", "Re-inspection"]
+/**
+ * The inspection work an ELPREMAR can be sent out on — also what the Activity
+ * column shows. The list itself is the parameter sheet's Inspection Type, held
+ * in master-data with the maintenance types beside it.
+ */
+export const activityTypes: readonly string[] = inspectionTypes
 export const durations = ["1 Hour", "2 Hours", "4 Hours", "6 Hours", "8 Hours"]
 
 /** A random dd-MM-yyyy commissioning date between 2010 and 2023 */
