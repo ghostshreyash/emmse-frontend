@@ -57,7 +57,7 @@ export const sections = {
   work: { title: "Work Management", path: "/work-management", icon: ClipboardList },
   knowledge: { title: "Knowledge Library", path: "/knowledge-library", icon: BookOpen },
   settings: { title: "Settings", path: "/settings", icon: Settings },
-  support: { title: "Support / Help", path: "/support", icon: CircleHelp },
+  support: { title: "Contact & Help", path: "/support", icon: CircleHelp },
 } satisfies Record<string, NavItem>
 
 /** The sidebar menu. Sections are hidden from it for now, not removed from the app. */
@@ -68,6 +68,7 @@ export const navigation: NavItem[] = [
   sections.inspections,
   sections.reports,
   sections.tickets,
+  sections.support,
   // sections.testing,
   // sections.reliability,
   // sections.safety,
@@ -76,5 +77,4 @@ export const navigation: NavItem[] = [
   // sections.work,
   // sections.knowledge,
   // sections.settings,
-  // sections.support,
 ]

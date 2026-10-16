@@ -31,6 +31,7 @@ Designs follow `docs/EVITA_WORKFLOW.pdf`, pages 30–36.
 | `/inspection-activities` → `/add` → `/:id` | Inspections: the inspection queue across the enterprise's plants | Built |
 | `/reports` → `/reports/:assetId` | Reports & Analytics: the contamination, hygiene and cleaning report per asset | Built |
 | `/support-tickets` → `/support-tickets/:id` | Support Tickets, and Report an Issue | Built |
+| `/support` | Contact & Help: the FAQ, the helpdesk details and the way to raise a ticket | Built |
 | `/profile` | The signed-in administrator's own profile | Built |
 | Other sidebar sections | Asset Management, Users & Access, Settings and the rest | Placeholder |
 
@@ -38,8 +39,15 @@ Every screen under the shell carries the help assistant, bottom right. It
 answers from the client's `Olivine_APP_AI_Chatbot_FAQ_` sheet - the 99 rows
 marked for EMMS-E - and from nothing else; there is no model behind it. See
 `src/lib/help-bot.ts` for the matching and `src/data/faq.ts` for the rows. When
-it has no approved answer it offers Report an Issue, which is the client's own
-rule: a ticket is the escalation path for what the chatbot cannot resolve.
+it has no approved answer it offers Report an Issue and the full answer list,
+which is the client's own rule: a ticket is the escalation path for what the
+chatbot cannot resolve.
+
+**Contact & Help** (`/support`) is where those rows are read all at once rather
+than one at a time - browsed by topic or searched across every topic - with the
+helpdesk details beside them and the ticket at the end. The support line, email
+and hours in `src/data/support.ts` are placeholders; no OLIVINE document gives
+them, and EVITA carries the same stand-ins.
 
 ### Support tickets
 

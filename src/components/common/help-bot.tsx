@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router"
-import { Bot, MessageCircle, Send, Ticket, TriangleAlert, X } from "lucide-react"
+import { Bot, ListTree, MessageCircle, Send, TriangleAlert, X } from "lucide-react"
 
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import { Button } from "@/components/ui/button"
@@ -141,10 +141,10 @@ export function HelpBot() {
   }
 
   /** Hand it to the people who can act on it, and get out of the way */
-  function handOff(to: "ticket" | "list") {
+  function handOff(to: "ticket" | "faq") {
     setOpen(false)
     if (to === "ticket") setRaising(true)
-    else navigate("/support-tickets")
+    else navigate("/support")
   }
 
   /*
@@ -298,7 +298,7 @@ function Suggestions({
 }: {
   turn: Turn
   onAsk: (question: string) => void
-  onHandOff: (to: "ticket" | "list") => void
+  onHandOff: (to: "ticket" | "faq") => void
 }) {
   const questions = turn.suggestions ?? []
   if (!questions.length && !turn.stuck) return null
@@ -330,8 +330,8 @@ function Suggestions({
           <Button type="button" size="xs" onClick={() => onHandOff("ticket")}>
             <TriangleAlert /> Report an Issue
           </Button>
-          <Button type="button" variant="outline" size="xs" onClick={() => onHandOff("list")}>
-            <Ticket /> My tickets
+          <Button type="button" variant="outline" size="xs" onClick={() => onHandOff("faq")}>
+            <ListTree /> Browse all answers
           </Button>
         </div>
       ) : null}
