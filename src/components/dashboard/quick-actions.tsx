@@ -1,12 +1,13 @@
 import { Link } from "react-router"
-import { FileText, Search, Wrench, Zap } from "lucide-react"
+import { FileText, Plus, Search, Wrench, Zap } from "lucide-react"
 
 import { SectionCard } from "@/components/common/section-card"
 
 const actions = [
-  { label: "Schedule Maintenance", icon: Wrench, to: "/maintenance-activities" },
+  { label: "Schedule Maintenance", icon: Wrench, to: "/tasks/add" },
   { label: "Search Asset / QR Code", icon: Search, to: "/assets" },
   { label: "View Reports", icon: FileText, to: "/reports" },
+  { label: "Add New Asset", icon: Plus, to: "/assets/add" },
 ]
 
 export function QuickActions() {

@@ -56,10 +56,10 @@ export function TaskDetailsPage() {
   if (!activity || !detail) {
     return (
       <div>
-        <PageHeader title="Task" breadcrumbs={[{ label: "Tasks", to: "/tasks" }, { label: id ?? "Unknown" }]} />
+        <PageHeader title="Maintenance Task" breadcrumbs={[{ label: "Maintenance Tasks", to: "/tasks" }, { label: id ?? "Unknown" }]} />
         <SectionCard title="Not found" hoverable={false}>
           <p className="py-6 text-center text-xs text-muted-foreground">
-            No task with id <span className="font-medium text-foreground">{id}</span>.{" "}
+            No maintenance task with id <span className="font-medium text-foreground">{id}</span>.{" "}
             <Link to="/tasks" className="text-primary hover:underline">Back to the list</Link>
           </p>
         </SectionCard>
@@ -75,7 +75,7 @@ export function TaskDetailsPage() {
     <div>
       <PageHeader
         title={activity.asset}
-        breadcrumbs={[{ label: "Tasks", to: "/tasks" }, { label: activity.id }]}
+        breadcrumbs={[{ label: "Maintenance Tasks", to: "/tasks" }, { label: activity.id }]}
         actions={
           <Button variant="outline" size="sm" className={control} onClick={() => navigate("/tasks")}>
             <ArrowLeft className="size-3.5" /> Back to list
@@ -150,20 +150,18 @@ export function TaskDetailsPage() {
             {detail.products.length ? (
               <ul className="divide-y divide-foreground/10 text-xs">
                 {detail.products.map((p) => (
-                  <li key={p.name} className="flex items-center justify-between gap-3 py-1.5 first:pt-0 last:pb-0">
-                    <span className="min-w-0 truncate font-medium">{p.name}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{p.quantity} {p.unit}</span>
-                  </li>
+                  // Product names only; quantities are not shown on this screen
+                  <li key={p.name} className="py-1.5 font-medium first:pt-0 last:pb-0">{p.name}</li>
                 ))}
               </ul>
             ) : (
-              <p className="py-3 text-center text-xs text-muted-foreground">No products recorded against this activity.</p>
+              <p className="py-3 text-center text-xs text-muted-foreground">No products recorded against this task.</p>
             )}
           </SectionCard>
 
           {/* ---------- Add-on activities ---------- */}
           <SectionCard title="Additional Activities" icon={<ShieldCheck className="size-4 text-primary" />} hoverable={false}>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3">
               <div className="rounded-lg p-3 ring-1 ring-foreground/10">
                 <div className="flex items-center gap-1.5 text-xs font-semibold">
                   <Flame className="size-3.5 text-critical" /> Fire Prevention System
@@ -172,19 +170,6 @@ export function TaskDetailsPage() {
                   <div className="mt-2 space-y-2">
                     <Detail label="System">{detail.firePrevention.system}</Detail>
                     <Detail label="Remarks"><span className="text-muted-foreground">{detail.firePrevention.remarks}</span></Detail>
-                  </div>
-                ) : (
-                  <p className="mt-2 text-xs text-muted-foreground">Not performed</p>
-                )}
-              </div>
-              <div className="rounded-lg p-3 ring-1 ring-foreground/10">
-                <div className="flex items-center gap-1.5 text-xs font-semibold">
-                  <Zap className="size-3.5 text-attention" /> Partial Discharge Mitigation
-                </div>
-                {detail.pdMitigation ? (
-                  <div className="mt-2 space-y-2">
-                    <Detail label="Method">{detail.pdMitigation.method}</Detail>
-                    <Detail label="Remarks"><span className="text-muted-foreground">{detail.pdMitigation.remarks}</span></Detail>
                   </div>
                 ) : (
                   <p className="mt-2 text-xs text-muted-foreground">Not performed</p>
