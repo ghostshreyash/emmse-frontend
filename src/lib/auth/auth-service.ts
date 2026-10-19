@@ -55,7 +55,7 @@ export const demoUser: AuthUser = {
   id: "TSL-ADM-001",
   name: "Rahul Mehta",
   initials: "RM",
-  role: "Enterprise Admin",
+  role: "EMMSE Admin",
   email: "rahul.mehta@tatasteel.com",
   mobile: "+919876543210",
   enterpriseId: "TSL-ENT-001",
@@ -76,12 +76,41 @@ export const demoAccounts: AuthUser[] = [
     id: "TSL-SUP-014",
     name: "Kavita Iyer",
     initials: "KI",
-    role: "Plant Maintenance Supervisor",
+    role: "EMMSE Admin",
     email: "kavita.iyer@tatasteel.com",
     mobile: "+919812345678",
     enterpriseId: "TSL-ENT-001",
     enterprise: "Tata Steel Limited",
     plant: "Mumbai Works",
+  },
+  /*
+   * A plant-level account: it signs in to the Plants screen, picks the plant it is
+   * working at, and the dashboard is then held to that plant.
+   */
+  {
+    id: "TSL-PLT-007",
+    name: "Olivine Plant User",
+    initials: "OP",
+    role: "EMMSE-0",
+    email: "olvinie.emmse0@yopmail.com",
+    mobile: "+919800012345",
+    enterpriseId: "TSL-ENT-001",
+    enterprise: "Tata Steel Limited",
+    plant: "Jamshedpur Works",
+    choosesPlant: true,
+  },
+  /* The same plant-level account, under the correctly spelt address */
+  {
+    id: "TSL-PLT-008",
+    name: "Olivine Plant User",
+    initials: "OP",
+    role: "EMMSE-0",
+    email: "olivine.emmse0@yopmail.com",
+    mobile: "+919800012346",
+    enterpriseId: "TSL-ENT-001",
+    enterprise: "Tata Steel Limited",
+    plant: "Jamshedpur Works",
+    choosesPlant: true,
   },
 ]
 
@@ -89,7 +118,7 @@ const accountFor = (identifier: string) => {
   const id = identifier.trim().toLowerCase()
   return (
     demoAccounts.find((a) => a.email.toLowerCase() === id) ??
-    demoAccounts.find((a) => a.enterpriseId.toLowerCase() === id && a.role === "Enterprise Admin") ??
+    demoAccounts.find((a) => a.enterpriseId.toLowerCase() === id && a.role === "EMMSE Admin") ??
     demoUser
   )
 }

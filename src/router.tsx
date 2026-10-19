@@ -10,6 +10,7 @@ import { RegisterPage } from "@/pages/auth/register"
 import { AccountRecoveryPage } from "@/pages/auth/account-recovery"
 import { ComingSoonPage } from "@/pages/coming-soon"
 import { DashboardPage } from "@/pages/dashboard"
+import { PlantsPanelPage } from "@/pages/plants-panel"
 import { AppLayout } from "@/layouts/app-layout"
 import { sections } from "@/config/navigation"
 import { ProfilePage } from "@/pages/profile"
@@ -44,6 +45,8 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      // A plant-level user's first screen after sign-in: full page, outside the app shell
+      { path: "plants", element: <PlantsPanelPage /> },
       {
         element: <AppLayout />,
         children: [
