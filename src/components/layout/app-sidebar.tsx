@@ -1,7 +1,6 @@
 import { NavLink, useLocation } from "react-router"
 import { Leaf } from "lucide-react"
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Sidebar,
   SidebarContent,
@@ -15,7 +14,6 @@ import {
 } from "@/components/ui/sidebar"
 import { OlivineEmblem, OlivineLogo } from "@/components/layout/olivine-logo"
 import { navigation, type NavItem } from "@/config/navigation"
-import { useAuth } from "@/lib/auth/context"
 
 const under = (current: string, path: string) =>
   path === "/" ? current === "/" : current === path || current.startsWith(`${path}/`)
@@ -23,29 +21,6 @@ const under = (current: string, path: string) =>
 /** A section stays highlighted on its own screens and on the details screens it covers */
 function isActivePath(current: string, item: NavItem) {
   return [item.path, ...(item.covers ?? [])].some((path) => under(current, path))
-}
-
-/** The signed-in admin, their enterprise and email, above the menu; opens My Profile */
-function Profile() {
-  const { user } = useAuth()
-
-  return (
-    <NavLink
-      to="/profile"
-      title="My Profile"
-      className="flex items-center gap-3 border-b border-sidebar-border px-3 py-3 transition-colors hover:bg-sidebar-accent/40 aria-[current=page]:bg-sidebar-accent/40 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-    >
-      <Avatar className="size-12 ring-2 ring-white/80 group-data-[collapsible=icon]:size-8">
-        <AvatarFallback className="bg-primary text-base font-semibold text-primary-foreground">{user?.initials}</AvatarFallback>
-      </Avatar>
-      <div className="min-w-0 text-sm leading-tight group-data-[collapsible=icon]:hidden">
-        <div className="truncate font-semibold text-sidebar-foreground">{user?.name}</div>
-        <div className="truncate text-sidebar-foreground/80">{user?.role}</div>
-        <div className="truncate text-sidebar-foreground/80">{user?.enterprise}</div>
-        <div className="mt-0.5 truncate text-xs text-sidebar-foreground/70" title={user?.email}>{user?.email}</div>
-      </div>
-    </NavLink>
-  )
 }
 
 export function AppSidebar() {
@@ -58,7 +33,7 @@ export function AppSidebar() {
         <OlivineEmblem className="hidden size-8 group-data-[collapsible=icon]:block" />
       </SidebarHeader>
 
-      <Profile />
+      {/* The profile moved to the account menu, top right of the top bar */}
 
       <SidebarContent className="py-2">
         <SidebarGroup>

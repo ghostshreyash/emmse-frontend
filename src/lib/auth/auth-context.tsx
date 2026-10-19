@@ -58,6 +58,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setResetContext(null)
   }, [])
 
+  const choosePlant = useCallback((plantId: string) => {
+    setSession((current) => {
+      if (!current) return current
+      const next = { ...current, plantId }
+      writeStoredSession(next)
+      return next
+    })
+  }, [])
+
   const updateUser = useCallback((changes: Partial<Pick<AuthUser, "name" | "email" | "mobile">>) => {
     // TODO(aws): PATCH /me; a new email or mobile should be verified by OTP first.
     setSession((current) => {
@@ -80,13 +89,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: session?.user ?? null,
       signIn,
       signOut,
+      choosePlant,
       updateUser,
       challenge,
       setChallenge,
       resetContext,
       setResetContext,
     }),
-    [session, signIn, signOut, updateUser, challenge, resetContext]
+    [session, signIn, signOut, choosePlant, updateUser, challenge, resetContext]
   )
 
   return <AuthContext value={value}>{children}</AuthContext>
