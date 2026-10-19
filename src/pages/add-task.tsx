@@ -573,8 +573,14 @@ export function AddTaskPage() {
                           className="h-8 w-full justify-start overflow-hidden text-xs"
                           onClick={() => setAssigning(true)}
                         >
-                          <UserRound /> <span className="truncate">{assigned ? assigned.name : "Assign ELPREMAR"}</span>
+                          <UserRound /> <span className="truncate">{assigned ? "Change ELPREMAR" : "Assign ELPREMAR"}</span>
                         </Button>
+                        {assigned ? (
+                          <p className="truncate text-[0.7rem]" title={`${assigned.name} · ${assigned.id}`}>
+                            <span className="font-semibold text-primary">{assigned.name}</span>
+                            <span className="text-muted-foreground"> · {assigned.id}</span>
+                          </p>
+                        ) : null}
                       </Field>
                     </div>
                     <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -770,10 +776,7 @@ export function AddTaskPage() {
                 title: form.assetName || "New Maintenance Task",
                 subtitle: `${form.kinds.join(", ") || "Maintenance"} · ${asset?.plant ?? form.plant}`,
                 plant: asset?.plant ?? form.plant,
-                // Already booked: open on that booking, with Reassign to change it
-                elpremar: assigned?.name,
-                date: assigned ? toDisplay(form.plannedDate) : undefined,
-                slot: assigned ? Number(form.startTime.slice(0, 2)) : undefined,
+                // Opens straight on the ELPREMAR search, assigning or changing alike, as on Add Inspection
                 approvable: false,
               }
             : null
