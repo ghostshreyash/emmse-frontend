@@ -4,47 +4,22 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import {
-  addMonths,
-  eachDayOfInterval,
-  endOfMonth,
-  endOfWeek,
-  format,
-  isSameDay,
-  isSameMonth,
-  isValid,
-  parse,
-  startOfMonth,
-  startOfWeek,
-} from "date-fns"
-import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  HardHat,
-  Mail,
-  Paperclip,
-  Phone,
-  Send,
-  UserRound,
-} from "lucide-react"
+import { format, isValid, parse } from "date-fns"
+import { ArrowLeft, Paperclip, Send, UserRound } from "lucide-react"
 import { cn } from "cn"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  AssignElpremarDialog, type AssignResult, type Booking,
+  AssignElpremarDialog, type AssignResult,
 } from "@/components/common/assign-elpremar-dialog"
+import { ElpremarRail } from "@/components/common/elpremar-booking"
 import { PageHeader } from "@/components/common/page-header"
 import { SectionCard } from "@/components/common/section-card"
 import { SelectField, TextareaField, TextField } from "@/components/form/fields"
-import { enterpriseInfo, plants as enterprisePlants } from "@/data/dashboard"
-import { useInspectionRows } from "@/data/inspection-store"
+import { plants as enterprisePlants } from "@/data/dashboard"
+import { useElpremarBookings } from "@/data/elpremar-bookings"
 import { activityTypes, areas, assetCategories, durations, priorities, slotLabel, type Elpremar } from "@/data/operations"
-import { useTaskRows } from "@/data/task-store"
-import { control as controlSize, td, th } from "@/lib/data-table"
-import { workStatus, type WorkStatus } from "@/lib/status"
+import { control as controlSize } from "@/lib/data-table"
 import { required } from "@/lib/validation"
 
 /** This enterprise's plants; the enterprise itself is fixed, so it is not asked for */
@@ -69,71 +44,6 @@ const schema = z.object({
   priority: required("Priority"),
 })
 type AssignValues = z.infer<typeof schema>
-
-/*
- * Mock availability: the days this ELPREMAR cannot take work (leave or otherwise
- * unavailable). Every other day in the month reads as available, so the calendar
- * answers one question — can they be booked that day or not.
- */
-const unavailableDays = new Set([26, 31])
-
-const availabilityStyle = {
-  available: { dot: "bg-healthy", label: "Available" },
-  unavailable: { dot: "bg-critical", label: "Not Available" },
-}
-
-/** `selected` is the day the activity is booked for, highlighted in the grid */
-function AvailabilityCalendar({ selected }: { selected?: Date }) {
-  // Opens on the booked month; the caller remounts on a new booking so this resets
-  const [month, setMonth] = useState(() => startOfMonth(selected ?? new Date()))
-  const today = new Date()
-
-  const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) })
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between rounded-md bg-info-soft px-2 py-1">
-        <Button variant="ghost" size="icon-sm" onClick={() => setMonth((m) => addMonths(m, -1))} aria-label="Previous month"><ChevronLeft /></Button>
-        <span className="text-sm font-semibold">{format(month, "MMMM yyyy")}</span>
-        <Button variant="ghost" size="icon-sm" onClick={() => setMonth((m) => addMonths(m, 1))} aria-label="Next month"><ChevronRight /></Button>
-      </div>
-      <div className="grid grid-cols-7 text-center text-xs">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div key={d} className="py-1 font-medium text-muted-foreground">{d}</div>
-        ))}
-        {days.map((day) => {
-          const inMonth = isSameMonth(day, month)
-          const state = unavailableDays.has(day.getDate()) ? "unavailable" : "available"
-          const isSelected = !!selected && isSameDay(day, selected)
-          const isToday = isSameDay(day, today)
-          return (
-            <div key={day.toISOString()} className="flex flex-col items-center py-0.5">
-              <span
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md",
-                  !inMonth && "text-muted-foreground/50",
-                  // The booked day is filled; today keeps a ring so both stay readable
-                  isSelected && "bg-primary font-semibold text-primary-foreground",
-                  isToday && !isSelected && "ring-1 ring-primary/50 font-semibold text-primary"
-                )}
-              >
-                {format(day, "d")}
-              </span>
-              <span className={cn("mt-0.5 size-1.5 rounded-full", inMonth ? availabilityStyle[state].dot : "bg-transparent")} />
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
-        {Object.values(availabilityStyle).map((s) => (
-          <span key={s.label} className="flex items-center gap-1.5">
-            <span className={cn("size-2 rounded-full", s.dot)} /> {s.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 /** The intake form for a new inspection activity, reached from the Inspections list (ported from OCC) */
 export function AddInspectionPage() {
@@ -161,35 +71,8 @@ export function AddInspectionPage() {
     return isValid(d) ? d : undefined
   }, [scheduled])
 
-  const inspectionRows = useInspectionRows()
-  const taskRows = useTaskRows()
-
   // Everything already on someone's books, so the dialog can spot a clash
-  const bookings = useMemo(
-    () =>
-      ([
-        ...taskRows.map((m) => ({ elpremar: m.elpremar, date: m.scheduled, label: m.asset, plant: m.plant, enterprise: enterpriseInfo.name, slot: m.slot })),
-        ...inspectionRows.map((t) => ({ elpremar: t.elpremar, date: t.due, label: t.activity, plant: t.plant, enterprise: enterpriseInfo.name, slot: t.slot })),
-      ] as (Omit<Booking, "elpremar" | "date"> & { elpremar?: string; date?: string })[]).filter(
-        (b): b is Booking => !!b.elpremar && !!b.date
-      ),
-    [taskRows, inspectionRows]
-  )
-
-  // The chosen ELPREMAR's jobs today, in time order, for the Today's Tasks panel
-  const todaysTasks = useMemo(() => {
-    if (!selected) return []
-    const today = format(new Date(), "dd-MM-yyyy")
-    const jobs: { slot: number; asset: string; activity: string; status: WorkStatus }[] = [
-      ...inspectionRows
-        .filter((t) => t.elpremar === selected.name && t.due === today)
-        .map((t) => ({ slot: t.slot, asset: `${t.asset} · ${t.plant}`, activity: t.activity, status: t.status })),
-      ...taskRows
-        .filter((m) => m.elpremar === selected.name && m.scheduled === today)
-        .map((m) => ({ slot: m.slot, asset: `${m.asset} · ${m.plant}`, activity: `${m.type} Maintenance`, status: m.status })),
-    ]
-    return jobs.sort((a, b) => a.slot - b.slot)
-  }, [selected, inspectionRows, taskRows])
+  const bookings = useElpremarBookings()
 
   /** The dialog settles the person, the day and the interval, so the form takes all three */
   const saveAssignment = ({ elpremar, date, slot }: AssignResult) => {
@@ -293,52 +176,7 @@ export function AddInspectionPage() {
         {/* The rail only has something to say once an ELPREMAR is on the activity */}
         {selected ? (
           <div className="space-y-5">
-            <SectionCard title="Selected ELPREMAR Details" actions={<Button variant="link" size="xs">View Profile</Button>}>
-              <div className="flex items-start gap-3">
-                <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-attention-soft text-attention"><HardHat className="size-7" /></div>
-                <div className="min-w-0 flex-1 text-xs">
-                  <div className="text-sm font-semibold">{selected.name}</div>
-                  <div>{selected.id}</div>
-                  <div className="text-muted-foreground">{selected.department} Department</div>
-                  <div className="text-muted-foreground">{selected.plant}</div>
-                </div>
-                <div className="space-y-1.5 text-xs">
-                  <Badge variant={selected.available ? "healthy" : "critical"}>{selected.available ? "Available" : "Not Available"}</Badge>
-                  <div className="flex items-center gap-1.5"><Phone className="size-3.5 text-primary" /> {selected.phone}</div>
-                  <div className="flex items-center gap-1.5"><Mail className="size-3.5 text-primary" /> <span className="truncate">{selected.email}</span></div>
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="ELPREMAR Details">
-              <AvailabilityCalendar key={bookedDay?.toISOString() ?? "none"} selected={bookedDay} />
-            </SectionCard>
-
-            <SectionCard title={`Today's Tasks (${format(new Date(), "d MMM yyyy")})`} viewAllTo="/inspection-activities" contentClassName="px-2">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/60">
-                    <TableHead className={th}>#</TableHead><TableHead className={th}>Time</TableHead><TableHead className={th}>Location / Asset</TableHead><TableHead className={th}>Activity</TableHead><TableHead className={th}>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {todaysTasks.map((t, i) => (
-                    <TableRow key={`${t.slot}-${t.asset}`}>
-                      <TableCell className={td}>{i + 1}</TableCell>
-                      <TableCell className={cn(td, "tabular-nums")}>{slotLabel(t.slot).slice(0, 5)}</TableCell>
-                      <TableCell className={td}>{t.asset}</TableCell>
-                      <TableCell className={td}>{t.activity}</TableCell>
-                      <TableCell className={td}><Badge variant={workStatus[t.status].badge} className="rounded px-1.5 py-0 text-[0.65rem]">{workStatus[t.status].label}</Badge></TableCell>
-                    </TableRow>
-                  ))}
-                  {todaysTasks.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="py-4 text-center text-xs text-muted-foreground">Nothing booked for today.</TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            </SectionCard>
+            <ElpremarRail selected={selected} bookedDay={bookedDay} />
           </div>
         ) : null}
       </div>
