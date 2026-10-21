@@ -58,6 +58,13 @@ export function StepDetails({
   // An asset being corrected keeps the ID it was issued; a new one is shown the ID it will get
   const assetId = issuedId ?? (category ? buildAssetId({ plantName: plant, category, existing: register }) : "")
 
+  /*
+   * Other on the dropdown asks for the category by name rather than leaving the
+   * asset registered as the bare word "Other". The grid's own Other still lists
+   * every category first - the dropdown has already been through that list.
+   */
+  const [namingCategory, setNamingCategory] = useState(false)
+
   /* A category typed by hand behind Other is not on the master list */
   const categoryOptions =
     category && !(assetCategories as readonly string[]).includes(category)
@@ -110,6 +117,7 @@ export function StepDetails({
             required
             options={categoryOptions}
             placeholder="Select, or tap a category on the right"
+            onValueChange={(value) => setNamingCategory(value === "Other")}
           />
 
           <Field>
@@ -162,6 +170,8 @@ export function StepDetails({
         <CategoryReference
           value={category}
           onSelect={(value) => setValue("category", value, { shouldValidate: true, shouldDirty: true })}
+          naming={namingCategory}
+          onNamingChange={setNamingCategory}
         />
         <TipBox
           items={[
