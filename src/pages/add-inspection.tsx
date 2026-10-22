@@ -15,7 +15,7 @@ import {
 import { ElpremarRail } from "@/components/common/elpremar-booking"
 import { PageHeader } from "@/components/common/page-header"
 import { SectionCard } from "@/components/common/section-card"
-import { SelectField, TextareaField, TextField } from "@/components/form/fields"
+import { MultiSelectField, SelectField, TextareaField, TextField } from "@/components/form/fields"
 import { plants as enterprisePlants } from "@/data/dashboard"
 import { useElpremarBookings } from "@/data/elpremar-bookings"
 import { activityTypes, areas, assetCategories, durations, priorities, slotLabel, type Elpremar } from "@/data/operations"
@@ -30,7 +30,8 @@ const schema = z.object({
   area: required("Location / Area"),
   // The category is required before assigning; the exact activity may still be unknown at intake
   category: required("Asset Category"),
-  activity: z.string().optional(),
+  // Several inspections can be booked in one go, so the activity takes more than one type
+  activity: z.array(z.string()).optional(),
   // Two digits, so one activity covers 1-99 assets; blank means it was not counted
   assetCount: z
     .string()
@@ -51,7 +52,7 @@ export function AddInspectionPage() {
   const form = useForm<AssignValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      plant: plants[0], area: "", category: "", assetCount: "", activity: "",
+      plant: plants[0], area: "", category: "", assetCount: "", activity: [],
       date: "", time: "", duration: "4 Hours", description: "", priority: "Medium",
     },
   })
@@ -133,7 +134,7 @@ export function AddInspectionPage() {
               }}
               className="md:col-span-2"
             />
-            <SelectField control={control} name="activity" label="Activity Type" options={activityTypes} className="md:col-span-2" />
+            <MultiSelectField control={control} name="activity" label="Activity Type" options={activityTypes} placeholder="Select one or more" className="md:col-span-2" />
             <TextField control={control} name="date" label="Scheduled Date" required type="date" min={today()} className="md:col-span-2" />
             <TextField control={control} name="time" label="Start Time" required type="time" className="md:col-span-2" />
             <SelectField control={control} name="duration" label="Estimated Duration" options={durations} className="md:col-span-2" />
@@ -188,7 +189,7 @@ export function AddInspectionPage() {
           assigning
             ? {
                 id: "NEW",
-                title: activity || "New Inspection Activity",
+                title: activity?.length ? activity.join(", ") : "New Inspection Activity",
                 subtitle: `${watch("area") || "Location not set"} · ${plant}`,
                 plant,
                 // A new activity has nobody on it and no approval step of its own
