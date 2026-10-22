@@ -20,7 +20,7 @@ import { plants as enterprisePlants } from "@/data/dashboard"
 import { useElpremarBookings } from "@/data/elpremar-bookings"
 import { activityTypes, areas, assetCategories, durations, priorities, slotLabel, type Elpremar } from "@/data/operations"
 import { control as controlSize } from "@/lib/data-table"
-import { required } from "@/lib/validation"
+import { required, today } from "@/lib/validation"
 
 /** This enterprise's plants; the enterprise itself is fixed, so it is not asked for */
 const plants = enterprisePlants.map((p) => p.name)
@@ -28,8 +28,8 @@ const plants = enterprisePlants.map((p) => p.name)
 const schema = z.object({
   plant: required("Plant"),
   area: required("Location / Area"),
-  // A site may not know the category or the exact activity at intake, so neither gates the form
-  category: z.string().optional(),
+  // The category is required before assigning; the exact activity may still be unknown at intake
+  category: required("Asset Category"),
   activity: z.string().optional(),
   // Two digits, so one activity covers 1-99 assets; blank means it was not counted
   assetCount: z
@@ -37,7 +37,8 @@ const schema = z.object({
     .optional()
     .refine((v) => !v || /^\d{1,2}$/.test(v), "Enter a number up to 2 digits")
     .refine((v) => !v || Number(v) >= 1, "Enter at least 1 asset"),
-  date: required("Scheduled date"),
+  // Booked from today on; yyyy-MM-dd compares correctly as text
+  date: required("Scheduled date").refine((v) => v >= today(), "Pick today or a later date"),
   time: required("Start time"),
   duration: z.string().optional(),
   description: required("Task description"),
@@ -117,7 +118,7 @@ export function AddInspectionPage() {
           <form onSubmit={assign} className="grid gap-4 md:grid-cols-6" noValidate>
             <SelectField control={control} name="plant" label="Plant" required options={plants} className="md:col-span-3" />
             <SelectField control={control} name="area" label="Location / Area" required options={areas} className="md:col-span-3" />
-            <SelectField control={control} name="category" label="Asset Category" options={assetCategories} className="md:col-span-2" />
+            <SelectField control={control} name="category" label="Asset Category" required options={assetCategories} className="md:col-span-2" />
             <TextField
               control={control}
               name="assetCount"
@@ -133,7 +134,7 @@ export function AddInspectionPage() {
               className="md:col-span-2"
             />
             <SelectField control={control} name="activity" label="Activity Type" options={activityTypes} className="md:col-span-2" />
-            <TextField control={control} name="date" label="Scheduled Date" required type="date" className="md:col-span-2" />
+            <TextField control={control} name="date" label="Scheduled Date" required type="date" min={today()} className="md:col-span-2" />
             <TextField control={control} name="time" label="Start Time" required type="time" className="md:col-span-2" />
             <SelectField control={control} name="duration" label="Estimated Duration" options={durations} className="md:col-span-2" />
 

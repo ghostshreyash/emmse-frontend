@@ -26,6 +26,7 @@ import { elpremars, slotLabel } from "@/data/operations"
 import { addTask, useTaskRows } from "@/data/task-store"
 import type { TaskType } from "@/data/tasks"
 import { useAuth } from "@/lib/auth/context"
+import { today } from "@/lib/validation"
 
 /* ---------- Options ---------- */
 
@@ -240,7 +241,9 @@ function Panel({ title, className, children, action }: { title: string; classNam
  */
 export function AddTaskPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, session } = useAuth()
+  // A plant-level user (EMMSE-0) works at the plant picked after sign-in, and sees only its assets
+  const lockedPlant = user?.choosesPlant ? plants.find((p) => p.id === session?.plantId)?.name : undefined
   const taskCount = useTaskRows().length
 
   // A draft saved before a field existed still opens, with that field blank
@@ -248,7 +251,8 @@ export function AddTaskPage() {
   // ?asset=TAG (from Asset Management's Log New Activity) opens with that asset loaded
   const [form, setForm] = useState<TaskForm>(() => {
     const base = { ...blankForm(`WO-${format(new Date(), "yyyy")}-${1100 + taskCount}`), ...readDraft() }
-    const linked = findAsset(params.get("asset") ?? "")
+    const found = findAsset(params.get("asset") ?? "")
+    const linked = found && (!lockedPlant || found.plant === lockedPlant) ? found : undefined
     return linked ? { ...base, ...assetFields(linked) } : base
   })
   const [step, setStep] = useState<StepKey>("details")
@@ -286,7 +290,7 @@ export function AddTaskPage() {
     const classified = { Healthy: "healthy", Attention: "attention", Critical: "critical" } as const
     return inspectionRows
       .map((r) => ({ r, on: parse(r.due, "dd-MM-yyyy", new Date()) }))
-      .filter(({ r, on }) => r.status === "completed" && on <= today)
+      .filter(({ r, on }) => r.status === "completed" && on <= today && (!lockedPlant || r.plant === lockedPlant))
       .sort((a, b) => b.on.getTime() - a.on.getTime())
       .map(({ r }) => {
         const detail = inspectionDetails[r.id]
@@ -304,7 +308,7 @@ export function AddTaskPage() {
           health: result ? classified[result.classification] : undefined,
         }
       })
-  }, [inspectionRows, inspectionDetails])
+  }, [inspectionRows, inspectionDetails, lockedPlant])
 
   /**
    * Picking an asset in Asset Details only chooses it - Load Asset then fills the
@@ -325,6 +329,10 @@ export function AddTaskPage() {
       toast.error(tagId.trim() ? `No asset with ID ${tagId.trim()}` : "Pick an asset in Asset Details, then load it")
       return
     }
+    if (lockedPlant && found.plant !== lockedPlant) {
+      toast.error(`${found.tagId} is at ${found.plant}`, { description: `Only ${lockedPlant} assets can be used here.` })
+      return
+    }
     // The inspection it was picked through stays linked to the task
     setForm((f) => ({ ...f, ...assetFields(found), inspectionId: f.inspectionId }))
     toast.success(`${found.name} loaded`, { description: `${found.tagId} · ${found.plant}` })
@@ -334,10 +342,11 @@ export function AddTaskPage() {
   const missing = [
     !form.assetName.trim() && "Asset (pick one in Asset Details and press Load Asset)",
     !form.plannedDate && "Planned date",
+    // Work is planned from today on; yyyy-MM-dd compares correctly as text
+    !!form.plannedDate && form.plannedDate < today() && "Planned date (today or later)",
     !form.startTime && "Start time",
     !form.performedBy && "ELPREMAR (Assign ELPREMAR)",
     !form.kinds.length && "Maintenance type",
-    !form.fluids.length && "INSTA fluid used",
   ].filter(Boolean) as string[]
 
   /* ---------- Actions ---------- */
@@ -377,7 +386,7 @@ export function AddTaskPage() {
       {
         description:
           form.notes ||
-          `${form.inspectionId ? `Follow-up to inspection ${form.inspectionId}. ` : ""}${form.kinds.join(", ")} on ${form.assetName.trim()} using ${form.fluids.join(", ")}.`,
+          `${form.inspectionId ? `Follow-up to inspection ${form.inspectionId}. ` : ""}${form.kinds.join(", ")} on ${form.assetName.trim()}${form.fluids.length ? ` using ${form.fluids.join(", ")}` : ""}.`,
         createdBy: user?.name ?? "Enterprise Admin",
         area: [form.department, form.subDepartment].filter(Boolean).join(" · ") || "Not recorded",
         assetTag: form.tagId.trim() || "Not tagged",
@@ -447,7 +456,7 @@ export function AddTaskPage() {
         </h2>
 
         <div className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-          <Field label="Asset Details">
+          <Field label="Asset Details" required>
             <InspectedAssetPicker options={inspectedAssets} value={form.inspectionId} onChange={pickInspected} />
           </Field>
           <Button className="h-8" onClick={() => loadAsset()} disabled={!form.tagId}>Load Asset</Button>
@@ -557,7 +566,7 @@ export function AddTaskPage() {
                   <Panel title="Maintenance Task Information">
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <Field label="Planned Date" required>
-                        <Input type="date" value={form.plannedDate} onChange={(e) => set("plannedDate", e.target.value)} className={control} />
+                        <Input type="date" min={today()} value={form.plannedDate} onChange={(e) => set("plannedDate", e.target.value)} className={control} />
                       </Field>
                       <Field label="Start Time (Real Time)" required>
                         <TimeInput value={form.startTime} onChange={(v) => set("startTime", v)} />

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { today } from "@/lib/validation"
 import { crew, daySlots, priorities, slotLabel, type Priority } from "@/data/operations"
 import type { TaskDetail } from "@/data/task-detail"
 import { taskTypes, type TaskRow, type TaskType } from "@/data/tasks"
@@ -44,7 +45,8 @@ export function EditTaskDialog({
   const [description, setDescription] = useState(detail.description)
 
   const day = parse(date, "yyyy-MM-dd", new Date())
-  const ready = isValid(day) && description.trim().length > 0
+  // Rescheduled from today on, never into the past
+  const ready = isValid(day) && date >= today() && description.trim().length > 0
 
   const save = () =>
     onSave({
@@ -80,7 +82,7 @@ export function EditTaskDialog({
             </Select>
           </Row>
           <Row label="Scheduled Date" htmlFor="edit-date">
-            <Input id="edit-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Input id="edit-date" type="date" min={today()} value={date} onChange={(e) => setDate(e.target.value)} aria-invalid={date < today()} />
           </Row>
           <Row label="Time" htmlFor="edit-slot">
             <Select value={String(slot)} onValueChange={(v) => setSlot(Number(v))}>
