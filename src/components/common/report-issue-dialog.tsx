@@ -14,6 +14,7 @@ import { raiseTicket } from "@/data/ticket-store"
 import { ticketCategories } from "@/data/tickets"
 import { useAuth } from "@/lib/auth/context"
 import { required } from "@/lib/validation"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 const schema = z.object({
   subject: required("Subject").max(120),
@@ -60,6 +61,8 @@ export function ReportIssueDialog({
   }
 }) {
   const { user } = useAuth()
+  // An EMMSE-0 user raises issues about the plant they picked
+  const lockedPlant = useLockedPlant()
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -68,7 +71,7 @@ export function ReportIssueDialog({
       description: "",
       category: context?.category ?? "Technical",
       priority: "Medium",
-      plant: context?.plant ?? plants[0].name,
+      plant: lockedPlant ?? context?.plant ?? plants[0].name,
       attachment: undefined,
     },
   })
@@ -154,7 +157,7 @@ export function ReportIssueDialog({
           />
           <SelectField control={form.control} name="category" label="Category" required options={ticketCategories} />
           <SelectField control={form.control} name="priority" label="Priority" required options={priorities} />
-          <SelectField control={form.control} name="plant" label="Plant" required options={plants.map((p) => p.name)} />
+          <SelectField control={form.control} name="plant" label="Plant" required options={plants.map((p) => p.name)} disabled={!!lockedPlant} />
           <FileDropField
             control={form.control}
             name="attachment"

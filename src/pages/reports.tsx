@@ -21,6 +21,7 @@ import { activityTotals, contaminationTrend, estateInspections, healthTrend, mai
 import { findingLook, findings, reportRows, type Finding, type ReportRow } from "@/data/reports"
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 const ANY = "all"
 
@@ -99,7 +100,10 @@ export function ReportsPage() {
   const navigate = useNavigate()
   const [open, setOpen] = useState<OpenDocument | null>(null)
   const [query, setQuery] = useState("")
-  const [plant, setPlant] = useState(ANY)
+  // An EMMSE-0 user only works in the plant they picked, so the filter is held there
+  const lockedPlant = useLockedPlant()
+  const allPlants = lockedPlant ?? ANY
+  const [plant, setPlant] = useState(allPlants)
   const [category, setCategory] = useState(ANY)
   const [status, setStatus] = useState(ANY)
   const [sort, setSort] = useState<Sort<SortKey>>(null)
@@ -161,10 +165,10 @@ export function ReportsPage() {
   const start = (current - 1) * pageSize
   const shown = sorted.slice(start, start + pageSize)
 
-  const filtersOn = !!query || plant !== ANY || category !== ANY || status !== ANY
+  const filtersOn = !!query || plant !== allPlants || category !== ANY || status !== ANY
   const clearFilters = () => {
     setQuery("")
-    setPlant(ANY)
+    setPlant(allPlants)
     setCategory(ANY)
     setStatus(ANY)
     setPage(1)
@@ -222,7 +226,7 @@ export function ReportsPage() {
             />
           </div>
           <div className="mx-auto flex flex-wrap items-center gap-2">
-            <Select value={plant} onValueChange={(v) => { setPlant(v); setPage(1) }}>
+            <Select value={plant} onValueChange={(v) => { setPlant(v); setPage(1) }} disabled={!!lockedPlant}>
               <SelectTrigger size="sm" className={cn(control, "w-44 bg-card")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ANY}>All Plants</SelectItem>

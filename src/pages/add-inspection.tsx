@@ -23,6 +23,7 @@ import { useElpremarBookings } from "@/data/elpremar-bookings"
 import { activityTypes, areas, assetCategories, durations, priorities, slotLabel, type Elpremar } from "@/data/operations"
 import { control as controlSize } from "@/lib/data-table"
 import { required, today } from "@/lib/validation"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 /** This enterprise's plants; the enterprise itself is fixed, so it is not asked for */
 const plants = enterprisePlants.map((p) => p.name)
@@ -138,6 +139,8 @@ export function ActivityIntake({
   onCancel,
   onSubmit,
 }: IntakeProps) {
+  // An EMMSE-0 user books work only at the plant they picked, so Plant is preselected and held there
+  const lockedPlant = useLockedPlant()
   const form = useForm<AssignValues>({
     resolver: zodResolver(schemaFor(pickAsset)),
     defaultValues: {
@@ -146,6 +149,7 @@ export function ActivityIntake({
       activity: pickAsset ? [] : [...activityTypes],
       date: "", time: "", duration: "4 Hours", description: "", priority: "Medium",
       ...initial,
+      ...(lockedPlant ? { plant: lockedPlant } : {}),
     },
   })
   const { control, watch, setValue } = form
@@ -222,7 +226,7 @@ export function ActivityIntake({
         <SectionCard title={cardTitle} hoverable={false}>
           <p className="-mt-1 mb-4 text-xs text-muted-foreground">{intro}</p>
           <form onSubmit={assign} className="grid gap-4 md:grid-cols-6" noValidate>
-            <SelectField control={control} name="plant" label="Plant" required options={plants} onValueChange={pickAsset ? clearAsset : undefined} className="md:col-span-3" />
+            <SelectField control={control} name="plant" label="Plant" required options={plants} onValueChange={pickAsset ? clearAsset : undefined} disabled={!!lockedPlant} className="md:col-span-3" />
             <SelectField control={control} name="area" label="Location / Area" required options={areas} className="md:col-span-3" />
             {pickAsset ? (
               <>
