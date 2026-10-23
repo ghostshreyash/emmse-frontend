@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar"
 import { OlivineEmblem, OlivineLogo } from "@/components/layout/olivine-logo"
 import { navigation, type NavItem } from "@/config/navigation"
+import { useAuth } from "@/lib/auth/context"
 
 const under = (current: string, path: string) =>
   path === "/" ? current === "/" : current === path || current.startsWith(`${path}/`)
@@ -25,6 +26,9 @@ function isActivePath(current: string, item: NavItem) {
 
 export function AppSidebar() {
   const { pathname } = useLocation()
+  const { user } = useAuth()
+  // A plant-level user works inside the one plant they picked, so enterprise-wide sections are left out
+  const items = user?.choosesPlant ? navigation.filter((item) => !item.enterpriseOnly) : navigation
 
   return (
     <Sidebar collapsible="icon">
@@ -39,7 +43,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {navigation.map((item) => (
+              {items.map((item) => (
                 <SidebarMenuItem key={item.path}>
                   <SidebarMenuButton
                     asChild
