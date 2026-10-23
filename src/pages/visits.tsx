@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { Link } from "react-router"
+import { Link, useNavigate } from "react-router"
 import type { DateRange } from "react-day-picker"
 import { isAfter, isBefore, parse, startOfDay } from "date-fns"
 import { FileText, Plus, Search, Sheet, X } from "lucide-react"
@@ -27,7 +27,7 @@ const look = (s: WorkStatus) => inspectionStatus[s] ?? workStatus[s]
 /** dd-MM-yyyy is what the rows carry; everything here compares real dates */
 const parseDate = (d: string) => parse(d, "dd-MM-yyyy", new Date())
 
-type SortKey = "id" | "plant" | "area" | "asset" | "elpremar" | "date" | "status"
+type SortKey = "id" | "plant" | "area" | "category" | "elpremar" | "date" | "status"
 
 const statusRank: Record<WorkStatus, number> = { open: 0, pending: 1, rejected: 2, reopened: 3, assigned: 4, in_progress: 5, completed: 6, closed: 7 }
 
@@ -35,7 +35,7 @@ const sortValue: Record<SortKey, (r: VisitRow) => string | number> = {
   id: (r) => r.id,
   plant: (r) => r.plant,
   area: (r) => r.area,
-  asset: (r) => r.assetTag,
+  category: (r) => categoriesOf(r),
   elpremar: (r) => r.elpremar,
   // Sort on the moment, not the text, so the interval breaks ties within a day
   date: (r) => parseDate(r.date).getTime() + r.slot / 100,
@@ -43,15 +43,15 @@ const sortValue: Record<SortKey, (r: VisitRow) => string | number> = {
 }
 
 const activitiesOf = (r: VisitRow) => (r.activities.length ? r.activities.join(", ") : "-")
+const categoriesOf = (r: VisitRow) => r.categories.join(", ")
 
 /** Columns shared by the CSV and PDF exports, so both carry what the table shows */
 const exportColumns: ExportColumn<VisitRow>[] = [
   { header: "Visit ID", value: (r) => r.id },
   { header: "Plant", value: (r) => r.plant },
   { header: "Location / Area", value: (r) => r.area },
-  { header: "Asset ID", value: (r) => r.assetTag },
-  { header: "Asset Name", value: (r) => r.asset },
-  { header: "Asset Category", value: (r) => r.category },
+  { header: "Asset Category", value: categoriesOf },
+  { header: "No. of Assets", value: (r) => r.assetCount },
   { header: "Activity Type", value: activitiesOf },
   { header: "ELPREMAR", value: (r) => r.elpremar },
   { header: "Scheduled", value: (r) => `${r.date} ${slotLabel(r.slot)}` },
@@ -65,6 +65,7 @@ const exportColumns: ExportColumn<VisitRow>[] = [
  * plants, laid out like the Inspections list. Add Visit uses the Add Inspection form.
  */
 export function VisitsPage() {
+  const navigate = useNavigate()
   const rows = useVisitRows()
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<WorkStatus | "all">("all")
@@ -90,7 +91,7 @@ export function VisitsPage() {
       }
       // Search runs over everything the row shows, including its status wording and interval
       if (!q) return true
-      const haystack = [r.id, r.plant, r.area, r.assetTag, r.asset, r.category, activitiesOf(r), r.elpremar, r.date, slotLabel(r.slot), look(r.status).label]
+      const haystack = [r.id, r.plant, r.area, categoriesOf(r), activitiesOf(r), r.elpremar, r.date, slotLabel(r.slot), look(r.status).label]
       return haystack.some((f) => f.toLowerCase().includes(q))
     })
   }, [rows, query, status, plant, range])
@@ -173,7 +174,7 @@ export function VisitsPage() {
                 <SortHead label="Visit ID" column="id" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <SortHead label="Plant" column="plant" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <SortHead label="Location / Area" column="area" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
-                <SortHead label="Asset" column="asset" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
+                <SortHead label="Asset Category" column="category" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <TableHead className={th}>Activity Type</TableHead>
                 <SortHead label="ELPREMAR" column="elpremar" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
                 <SortHead label="Scheduled" column="date" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
@@ -182,14 +183,14 @@ export function VisitsPage() {
             </TableHeader>
             <TableBody>
               {shown.map((r, i) => (
-                <TableRow key={r.id}>
+                <TableRow key={r.id} onClick={() => navigate(`/visits/${r.id}`)} className="cursor-pointer">
                   <TableCell className={cn(td, "tabular-nums text-muted-foreground")}>{start + i + 1}</TableCell>
                   <TableCell className={cn(td, "font-medium whitespace-nowrap")}>{r.id}</TableCell>
                   <TableCell className={td}>{r.plant}</TableCell>
                   <TableCell className={td}>{r.area}</TableCell>
                   <TableCell className={td}>
-                    <span className="font-medium tabular-nums">{r.assetTag}</span>
-                    <span className="block text-[0.65rem] text-muted-foreground">{r.asset} · {r.category}</span>
+                    {categoriesOf(r)}
+                    {r.assetCount ? <span className="block text-[0.65rem] text-muted-foreground">{r.assetCount} assets</span> : null}
                   </TableCell>
                   <TableCell className={td}>{activitiesOf(r)}</TableCell>
                   <TableCell className={td}>{r.elpremar}</TableCell>
@@ -197,7 +198,7 @@ export function VisitsPage() {
                     {r.date}
                     <span className="block text-[0.65rem] text-muted-foreground">{slotLabel(r.slot)}</span>
                   </TableCell>
-                  <TableCell className={td}>
+                  <TableCell className={td} onClick={(e) => r.status === "pending" && e.stopPropagation()}>
                     <span className="flex items-center gap-1.5">
                       <Badge variant={look(r.status).badge} className="rounded px-1.5 py-0 text-[0.65rem]">{look(r.status).label}</Badge>
                       {/* Only a visit that has not started can be deleted */}

@@ -32,6 +32,7 @@ import { InspectionDetailsPage } from "@/pages/inspection-details"
 import { AddInspectionPage } from "@/pages/add-inspection"
 import { VisitsPage } from "@/pages/visits"
 import { AddVisitPage } from "@/pages/add-visit"
+import { VisitDetailsPage } from "@/pages/visit-details"
 
 /** Sections with a real screen; every other section gets a placeholder page */
 const built = new Set(["/", "/plants-list", "/assets", "/tasks", "/inspection-activities", "/visits", "/reports", "/support-tickets", "/support"])
@@ -81,6 +82,7 @@ export const router = createBrowserRouter([
           { path: "inspection-activities/:id", element: <InspectionDetailsPage /> },
           { path: "visits", element: <VisitsPage /> },
           { path: "visits/add", element: <AddVisitPage /> },
+          { path: "visits/:id", element: <VisitDetailsPage /> },
           { path: "reports", element: <ReportsPage /> },
           // One asset's record: its detail and the three documents against it
           { path: "reports/:assetId", element: <ReportDetailsPage /> },

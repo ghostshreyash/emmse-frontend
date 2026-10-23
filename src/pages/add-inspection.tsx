@@ -20,21 +20,29 @@ import { MultiSelectField, SelectField, TextareaField, TextField } from "@/compo
 import { useAssetRows } from "@/data/asset-store"
 import { plants as enterprisePlants } from "@/data/dashboard"
 import { useElpremarBookings } from "@/data/elpremar-bookings"
-import { activityTypes, areas, durations, priorities, slotLabel, type Elpremar } from "@/data/operations"
+import { activityTypes, areas, assetCategories, durations, priorities, slotLabel, type Elpremar } from "@/data/operations"
 import { control as controlSize } from "@/lib/data-table"
 import { required, today } from "@/lib/validation"
 
 /** This enterprise's plants; the enterprise itself is fixed, so it is not asked for */
 const plants = enterprisePlants.map((p) => p.name)
 
-const schema = z.object({
+/** The fields every booking has; which asset fields apply depends on the screen */
+const baseSchema = z.object({
   plant: required("Plant"),
   area: required("Location / Area"),
-  // Picked from the register; its name and category follow from it
-  assetTag: required("Asset ID"),
-  assetName: required("Asset Name"),
-  category: required("Asset Category"),
-  // Every inspection type starts ticked; the user drops the ones not needed
+  // One category on an inspection (it comes with the asset); a visit can cover several
+  category: z.string().optional(),
+  categories: z.array(z.string()).optional(),
+  assetTag: z.string().optional(),
+  assetName: z.string().optional(),
+  // Two digits, so one visit covers 1-99 assets; blank means it was not counted
+  assetCount: z
+    .string()
+    .optional()
+    .refine((v) => !v || /^\d{1,2}$/.test(v), "Enter a number up to 2 digits")
+    .refine((v) => !v || Number(v) >= 1, "Enter at least 1 asset"),
+  // Several inspections can be booked in one go, so the activity takes more than one type
   activity: z.array(z.string()).optional(),
   // Booked from today on; yyyy-MM-dd compares correctly as text
   date: required("Scheduled date").refine((v) => v >= today(), "Pick today or a later date"),
@@ -43,7 +51,25 @@ const schema = z.object({
   description: required("Task description"),
   priority: required("Priority"),
 })
-export type AssignValues = z.infer<typeof schema>
+export type AssignValues = z.infer<typeof baseSchema>
+
+/**
+ * What each screen requires on top of the base: an inspection is of one register
+ * asset (picked by its ID, which brings its name and category); a visit covers
+ * one or more categories of asset in its area. Kept as refinements so both
+ * screens share one set of form values.
+ */
+const schemaFor = (pickAsset: boolean) =>
+  baseSchema.superRefine((v, ctx) => {
+    const missing = (path: keyof AssignValues, message: string) => ctx.addIssue({ code: "custom", path: [path], message })
+    if (pickAsset) {
+      if (!v.assetTag?.trim()) missing("assetTag", "Asset ID is required")
+      if (!v.assetName?.trim()) missing("assetName", "Asset Name is required")
+      if (!v.category?.trim()) missing("category", "Asset Category is required")
+    } else if (!v.categories?.length) {
+      missing("categories", "Pick at least one asset category")
+    }
+  })
 
 /** What changes between the screens that use this form: their wording, and what Submit does */
 type IntakeProps = {
@@ -56,6 +82,20 @@ type IntakeProps = {
   submitLabel: string
   /** Shown in the booking dialog until an activity type is picked */
   untitled: string
+  /**
+   * Add Inspection picks one register asset by its ID (name and category follow);
+   * without it the form asks for an asset category and a count, and starts with
+   * every activity type ticked, as Schedule a Visit does.
+   */
+  pickAsset?: boolean
+  /** Editing an existing booking: what it holds now, and who it is booked to */
+  initial?: Partial<AssignValues>
+  initialElpremar?: Elpremar
+  /** Overrides the header trail and back link, e.g. to point back at a details page */
+  breadcrumbs?: { label: string; to?: string; onClick?: () => void }[]
+  back?: { label: string; onClick: () => void }
+  /** When given, the left footer button cancels the edit instead of clearing the form */
+  onCancel?: () => void
   onSubmit: (values: AssignValues, elpremar: Elpremar) => void
 }
 
@@ -70,6 +110,7 @@ export function AddInspectionPage() {
       intro="Create and assign a new inspection activity for electrical asset assessment at the selected location."
       submitLabel="Add Activity"
       untitled="New Inspection Activity"
+      pickAsset
       // TODO: POST /inspection-activities
       onSubmit={(_, elpremar) => toast.success(`Activity assigned to ${elpremar.name}`)}
     />
@@ -81,18 +122,36 @@ export function AddInspectionPage() {
  * ELPREMAR booked through the availability dialog. Add Inspection and Schedule
  * a Visit both use it, so the two forms stay the same.
  */
-export function ActivityIntake({ title, listLabel, listPath, cardTitle, intro, submitLabel, untitled, onSubmit }: IntakeProps) {
+export function ActivityIntake({
+  title,
+  listLabel,
+  listPath,
+  cardTitle,
+  intro,
+  submitLabel,
+  untitled,
+  pickAsset = false,
+  initial,
+  initialElpremar,
+  breadcrumbs,
+  back,
+  onCancel,
+  onSubmit,
+}: IntakeProps) {
   const form = useForm<AssignValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaFor(pickAsset)),
     defaultValues: {
-      plant: plants[0], area: "", assetTag: "", assetName: "", category: "", activity: [...activityTypes],
+      plant: plants[0], area: "", assetTag: "", assetName: "", category: "", categories: [], assetCount: "",
+      // A visit starts with every type ticked and the user drops the ones not needed; an inspection starts empty
+      activity: pickAsset ? [] : [...activityTypes],
       date: "", time: "", duration: "4 Hours", description: "", priority: "Medium",
+      ...initial,
     },
   })
   const { control, watch, setValue } = form
 
   /** Who the activity is booked to. Nothing is chosen until the dialog commits. */
-  const [selected, setSelected] = useState<Elpremar | null>(null)
+  const [selected, setSelected] = useState<Elpremar | null>(initialElpremar ?? null)
   const [assigning, setAssigning] = useState(false)
 
   const plant = watch("plant")
@@ -144,11 +203,15 @@ export function ActivityIntake({ title, listLabel, listPath, cardTitle, intro, s
     <div className="space-y-5">
       <PageHeader
         title={title}
-        breadcrumbs={[{ label: listLabel, to: listPath }, { label: title }]}
+        breadcrumbs={breadcrumbs ?? [{ label: listLabel, to: listPath }, { label: title }]}
         actions={
           <>
             <Button variant="outline" size="sm" className={cn(controlSize, "bg-card")} asChild>
-              <Link to={listPath}><ArrowLeft className="size-3.5" /> Back to {listLabel}</Link>
+              {back ? (
+                <button type="button" onClick={back.onClick}><ArrowLeft className="size-3.5" /> {back.label}</button>
+              ) : (
+                <Link to={listPath}><ArrowLeft className="size-3.5" /> Back to {listLabel}</Link>
+              )}
             </Button>
           </>
         }
@@ -159,25 +222,49 @@ export function ActivityIntake({ title, listLabel, listPath, cardTitle, intro, s
         <SectionCard title={cardTitle} hoverable={false}>
           <p className="-mt-1 mb-4 text-xs text-muted-foreground">{intro}</p>
           <form onSubmit={assign} className="grid gap-4 md:grid-cols-6" noValidate>
-            <SelectField control={control} name="plant" label="Plant" required options={plants} onValueChange={clearAsset} className="md:col-span-3" />
+            <SelectField control={control} name="plant" label="Plant" required options={plants} onValueChange={pickAsset ? clearAsset : undefined} className="md:col-span-3" />
             <SelectField control={control} name="area" label="Location / Area" required options={areas} className="md:col-span-3" />
-            <AssetIdField
-              control={control}
-              name="assetTag"
-              label="Asset ID"
-              required
-              options={plantAssets}
-              empty={`No asset at ${plant} matches.`}
-              // The name and category come with the asset, so they are filled rather than typed
-              onPick={(asset) => {
-                setValue("assetName", asset.name, { shouldValidate: true })
-                setValue("category", asset.category, { shouldValidate: true })
-              }}
-              className="md:col-span-2"
-            />
-            <TextField control={control} name="assetName" label="Asset Name" required readOnly placeholder="Filled from the Asset ID" inputClassName="bg-muted/60" className="md:col-span-2" />
-            <TextField control={control} name="category" label="Asset Category" required readOnly placeholder="Filled from the Asset ID" inputClassName="bg-muted/60" className="md:col-span-2" />
-            <MultiSelectField control={control} name="activity" label="Activity Type" options={activityTypes} placeholder="Select one or more" className="md:col-span-6" />
+            {pickAsset ? (
+              <>
+                <AssetIdField
+                  control={control}
+                  name="assetTag"
+                  label="Asset ID"
+                  required
+                  options={plantAssets}
+                  empty={`No asset at ${plant} matches.`}
+                  // The name and category come with the asset, so they are filled rather than typed
+                  onPick={(asset) => {
+                    setValue("assetName", asset.name, { shouldValidate: true })
+                    setValue("category", asset.category, { shouldValidate: true })
+                  }}
+                  className="md:col-span-2"
+                />
+                <TextField control={control} name="assetName" label="Asset Name" required readOnly placeholder="Filled from the Asset ID" inputClassName="bg-muted/60" className="md:col-span-2" />
+                <TextField control={control} name="category" label="Asset Category" required readOnly placeholder="Filled from the Asset ID" inputClassName="bg-muted/60" className="md:col-span-2" />
+                <MultiSelectField control={control} name="activity" label="Activity Type" options={activityTypes} placeholder="Select one or more" className="md:col-span-6" />
+              </>
+            ) : (
+              /* Schedule a Visit: the categories of asset to look at, and how many assets */
+              <>
+                <MultiSelectField control={control} name="categories" label="Asset Category" required options={assetCategories} placeholder="Select one or more" className="md:col-span-2" />
+                <TextField
+                  control={control}
+                  name="assetCount"
+                  label="No. of Assets"
+                  inputMode="numeric"
+                  maxLength={2}
+                  placeholder="e.g. 12"
+                  // Digits only, and never more than two of them, so the cap holds while typing
+                  onValueChange={(v) => {
+                    const digits = v.replace(/\D/g, "").slice(0, 2)
+                    if (digits !== v) setValue("assetCount", digits, { shouldValidate: true })
+                  }}
+                  className="md:col-span-2"
+                />
+                <MultiSelectField control={control} name="activity" label="Activity Type" options={activityTypes} placeholder="Select one or more" className="md:col-span-2" />
+              </>
+            )}
             <TextField control={control} name="date" label="Scheduled Date" required type="date" min={today()} className="md:col-span-2" />
             <TextField control={control} name="time" label="Start Time" required type="time" className="md:col-span-2" />
             <SelectField control={control} name="duration" label="Estimated Duration" options={durations} className="md:col-span-2" />
@@ -212,7 +299,11 @@ export function ActivityIntake({ title, listLabel, listPath, cardTitle, intro, s
               <span className="ml-3 text-xs text-muted-foreground">PDF, JPG, PNG (Max 5 MB)</span>
             </div>
             <div className="flex justify-between gap-3 md:col-span-6">
-              <Button type="button" variant="outline" className="min-w-24" onClick={() => form.reset()}>Clear</Button>
+              {onCancel ? (
+                <Button type="button" variant="outline" className="min-w-24" onClick={onCancel}>Cancel</Button>
+              ) : (
+                <Button type="button" variant="outline" className="min-w-24" onClick={() => form.reset()}>Clear</Button>
+              )}
               <Button type="submit" className="min-w-36"><Send /> {submitLabel}</Button>
             </div>
           </form>
