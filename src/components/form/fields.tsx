@@ -179,7 +179,8 @@ export function SelectField<T extends FieldValues>({
   disabled,
   onValueChange,
 }: BaseProps<T> & {
-  options: readonly string[]
+  /** Plain values, or value/label pairs when what is stored differs from what is shown */
+  options: readonly (string | { value: string; label: string })[]
   placeholder?: string
   disabled?: boolean
   /** Runs after the value changes - used to clear a dependent field */
@@ -204,11 +205,14 @@ export function SelectField<T extends FieldValues>({
               <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent>
-              {options.map((o) => (
-                <SelectItem key={o} value={o}>
-                  {o}
-                </SelectItem>
-              ))}
+              {options.map((o) => {
+                const { value, label } = typeof o === "string" ? { value: o, label: o } : o
+                return (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
           {description ? <FieldDescription>{description}</FieldDescription> : null}

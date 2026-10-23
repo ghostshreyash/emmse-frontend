@@ -2,6 +2,7 @@ import {
   BookOpen,
   ChartColumn,
   CircleHelp,
+  Factory,
   ClipboardCheck,
   ClipboardList,
   Flame,
@@ -35,6 +36,7 @@ export type NavItem = {
  */
 export const sections = {
   dashboard: { title: "Dashboard", path: "/", icon: House },
+  plantsList: { title: "Plants", path: "/plants-list", icon: Factory, covers: ["/plants-list/"] },
   assets: { title: "Asset Management", path: "/assets", icon: HardDrive },
   tasks: { title: "Maintenance Tasks", path: "/tasks", icon: Wrench },
   /** The original Tasks route, kept as its placeholder page; Tasks now lives at /tasks */
@@ -63,6 +65,7 @@ export const sections = {
 /** The sidebar menu. Sections are hidden from it for now, not removed from the app. */
 export const navigation: NavItem[] = [
   sections.dashboard,
+  sections.plantsList,
   sections.assets,
   sections.tasks,
   sections.inspections,

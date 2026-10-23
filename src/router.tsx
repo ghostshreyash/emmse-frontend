@@ -11,6 +11,9 @@ import { AccountRecoveryPage } from "@/pages/auth/account-recovery"
 import { ComingSoonPage } from "@/pages/coming-soon"
 import { DashboardPage } from "@/pages/dashboard"
 import { PlantsPanelPage } from "@/pages/plants-panel"
+import { PlantsListPage } from "@/pages/plants-list"
+import { PlantDetailsPage } from "@/pages/plant-details"
+import { AddPlantPage } from "@/pages/plant-onboarding/add-plant"
 import { AppLayout } from "@/layouts/app-layout"
 import { sections } from "@/config/navigation"
 import { ProfilePage } from "@/pages/profile"
@@ -29,7 +32,7 @@ import { InspectionDetailsPage } from "@/pages/inspection-details"
 import { AddInspectionPage } from "@/pages/add-inspection"
 
 /** Sections with a real screen; every other section gets a placeholder page */
-const built = new Set(["/", "/assets", "/tasks", "/inspection-activities", "/reports", "/support-tickets", "/support"])
+const built = new Set(["/", "/plants-list", "/assets", "/tasks", "/inspection-activities", "/reports", "/support-tickets", "/support"])
 
 export const router = createBrowserRouter([
   { path: "/login", element: <PublicOnly><LoginPage /></PublicOnly> },
@@ -52,6 +55,10 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: "profile", element: <ProfilePage /> },
+          { path: "plants-list", element: <PlantsListPage /> },
+          /* "add" sits above ":id" so it is never read as a plant code */
+          { path: "plants-list/add", element: <AddPlantPage /> },
+          { path: "plants-list/:id", element: <PlantDetailsPage /> },
           { path: "assets", element: <AssetsPage /> },
           /* Asset Onboarding (ported from EVITA); "add" sits above ":id" so it is never read as an Asset ID */
           { path: "assets/add", element: <AssetOnboardingPage /> },
