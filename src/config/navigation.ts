@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  CalendarClock,
   ChartColumn,
   CircleHelp,
   Factory,
@@ -45,6 +46,8 @@ export const sections = {
   maintenance: { title: "Maintenance Tasks", path: "/maintenance-activities", icon: Wrench },
   reports: { title: "Reports & Analytics", path: "/reports", icon: ChartColumn, covers: ["/reports/"] },
   inspections: { title: "Inspections", path: "/inspection-activities", icon: ClipboardCheck },
+  /** Visits booked to an ELPREMAR; Add Visit uses the Add Inspection form */
+  visits: { title: "Schedule a Visit", path: "/visits", icon: CalendarClock, covers: ["/visits/"] },
   /** The original Inspections route, kept as its placeholder page */
   inspectionsPlaceholder: { title: "Inspections", path: "/inspections", icon: ClipboardCheck },
   testing: { title: "Testing & Measurements", path: "/testing-measurements", icon: SquareCheckBig },
@@ -71,6 +74,7 @@ export const navigation: NavItem[] = [
   sections.assets,
   sections.tasks,
   sections.inspections,
+  sections.visits,
   sections.reports,
   sections.tickets,
   sections.support,
