@@ -27,6 +27,8 @@ export type NavItem = {
    * its sidebar entry highlighted even though it sits on its own path.
    */
   covers?: string[]
+  /** Enterprise-wide sections a plant-level (EMMSE-0) user does not get */
+  enterpriseOnly?: boolean
 }
 
 /**
@@ -36,7 +38,7 @@ export type NavItem = {
  */
 export const sections = {
   dashboard: { title: "Dashboard", path: "/", icon: House },
-  plantsList: { title: "Plants", path: "/plants-list", icon: Factory, covers: ["/plants-list/"] },
+  plantsList: { title: "Plants", path: "/plants-list", icon: Factory, covers: ["/plants-list/"], enterpriseOnly: true },
   assets: { title: "Asset Management", path: "/assets", icon: HardDrive },
   tasks: { title: "Maintenance Tasks", path: "/tasks", icon: Wrench },
   /** The original Tasks route, kept as its placeholder page; Tasks now lives at /tasks */

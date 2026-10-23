@@ -1,6 +1,6 @@
 import { createBrowserRouter } from "react-router"
 
-import { PublicOnly, RequireAuth } from "@/components/auth/require-auth"
+import { EnterpriseOnly, PublicOnly, RequireAuth } from "@/components/auth/require-auth"
 import { LoginPage } from "@/pages/auth/login"
 import { VerifyOtpPage } from "@/pages/auth/verify-otp"
 import { ForgotPasswordPage } from "@/pages/auth/forgot-password"
@@ -55,10 +55,16 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <DashboardPage /> },
           { path: "profile", element: <ProfilePage /> },
-          { path: "plants-list", element: <PlantsListPage /> },
-          /* "add" sits above ":id" so it is never read as a plant code */
-          { path: "plants-list/add", element: <AddPlantPage /> },
-          { path: "plants-list/:id", element: <PlantDetailsPage /> },
+          {
+            // The Plants register is the enterprise's; an EMMSE-0 user only sees their picked plant
+            element: <EnterpriseOnly />,
+            children: [
+              { path: "plants-list", element: <PlantsListPage /> },
+              /* "add" sits above ":id" so it is never read as a plant code */
+              { path: "plants-list/add", element: <AddPlantPage /> },
+              { path: "plants-list/:id", element: <PlantDetailsPage /> },
+            ],
+          },
           { path: "assets", element: <AssetsPage /> },
           /* Asset Onboarding (ported from EVITA); "add" sits above ":id" so it is never read as an Asset ID */
           { path: "assets/add", element: <AssetOnboardingPage /> },
