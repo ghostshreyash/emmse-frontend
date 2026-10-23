@@ -20,6 +20,7 @@ import { ticketCategories, type TicketRow } from "@/data/tickets"
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
 import { ticketStatuses, workStatus, type WorkStatus } from "@/lib/status"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 const ANY = "all"
 
@@ -89,7 +90,10 @@ export function SupportTicketsPage() {
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<WorkStatus | typeof ANY>(ANY)
   const [category, setCategory] = useState<string>(ANY)
-  const [plant, setPlant] = useState(ANY)
+  // An EMMSE-0 user only works in the plant they picked, so the filter is held there
+  const lockedPlant = useLockedPlant()
+  const allPlants = lockedPlant ?? ANY
+  const [plant, setPlant] = useState(allPlants)
   const [range, setRange] = useState<DateRange | undefined>()
   const [sort, setSort] = useState<Sort<SortKey>>(null)
   const [page, setPage] = useState(1)
@@ -140,12 +144,12 @@ export function SupportTicketsPage() {
   const start = (current - 1) * pageSize
   const shown = sorted.slice(start, start + pageSize)
 
-  const filtersOn = !!query || status !== ANY || category !== ANY || plant !== ANY || !!range?.from
+  const filtersOn = !!query || status !== ANY || category !== ANY || plant !== allPlants || !!range?.from
   const clearFilters = () => {
     setQuery("")
     setStatus(ANY)
     setCategory(ANY)
-    setPlant(ANY)
+    setPlant(allPlants)
     setRange(undefined)
     setPage(1)
   }
@@ -184,7 +188,7 @@ export function SupportTicketsPage() {
             />
           </div>
           <div className="mx-auto flex flex-wrap items-center gap-2">
-            <Select value={plant} onValueChange={(v) => { setPlant(v); setPage(1) }}>
+            <Select value={plant} onValueChange={(v) => { setPlant(v); setPage(1) }} disabled={!!lockedPlant}>
               <SelectTrigger size="sm" className={cn(control, "w-40 bg-card")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value={ANY}>All Plants</SelectItem>

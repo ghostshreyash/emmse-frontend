@@ -20,6 +20,7 @@ import { deleteVisit, useVisitRows, visitStatusOrder, type VisitRow } from "@/da
 import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
 import { inspectionStatus, workStatus, type WorkStatus } from "@/lib/status"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 // A visit reads its states the way an inspection does: Open, In Progress, Completed
 const look = (s: WorkStatus) => inspectionStatus[s] ?? workStatus[s]
@@ -71,7 +72,10 @@ export function VisitsPage() {
   const [status, setStatus] = useState<WorkStatus | "all">("all")
   /** The Open visit waiting on a delete confirmation */
   const [deleting, setDeleting] = useState<VisitRow | null>(null)
-  const [plant, setPlant] = useState("all")
+  // An EMMSE-0 user only works in the plant they picked, so the filter is held there
+  const lockedPlant = useLockedPlant()
+  const allPlants = lockedPlant ?? "all"
+  const [plant, setPlant] = useState(allPlants)
   const [range, setRange] = useState<DateRange | undefined>()
   const [sort, setSort] = useState<Sort<SortKey>>(null)
   const [page, setPage] = useState(1)
@@ -104,11 +108,11 @@ export function VisitsPage() {
   const start = (current - 1) * pageSize
   const shown = sorted.slice(start, start + pageSize)
 
-  const filtersOn = !!query || status !== "all" || plant !== "all" || !!range?.from
+  const filtersOn = !!query || status !== "all" || plant !== allPlants || !!range?.from
   const clearFilters = () => {
     setQuery("")
     setStatus("all")
-    setPlant("all")
+    setPlant(allPlants)
     setRange(undefined)
   }
 
@@ -145,7 +149,7 @@ export function VisitsPage() {
             />
           </div>
           <div className="mx-auto flex flex-wrap items-center gap-2">
-            <Select value={plant} onValueChange={(v) => { setPlant(v); setPage(1) }}>
+            <Select value={plant} onValueChange={(v) => { setPlant(v); setPage(1) }} disabled={!!lockedPlant}>
               <SelectTrigger size="sm" className={cn(control, "w-44 bg-card")}><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Plants</SelectItem>
