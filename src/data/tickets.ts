@@ -115,12 +115,21 @@ const sourceByCategory: Record<TicketCategory, TicketSource> = {
 }
 
 /**
- * A ticket is Open or Closed - see `ticketStatuses`. Dealt out by **position**
- * rather than by hashing, so both buckets on the status filter have rows behind
- * them: a hash divisor over a book this size has emptied one before, which
- * shows on screen as a filter that selects nothing.
+ * A ticket is Open, In Progress or Completed - see `ticketStatuses`. Dealt out
+ * by **position** rather than by hashing, so every bucket on the status filter
+ * has rows behind it: a hash divisor over a book this size has emptied one
+ * before, which shows on screen as a filter that selects nothing.
  */
-const statusSpread: WorkStatus[] = ["open", "closed", "closed", "open", "closed", "closed", "open", "closed"]
+const statusSpread: WorkStatus[] = [
+  "open",
+  "completed",
+  "in_progress",
+  "completed",
+  "open",
+  "completed",
+  "in_progress",
+  "completed",
+]
 
 /* ---------- Generated book ---------- */
 
@@ -164,9 +173,9 @@ function generateTickets(count: number): TicketRow[] {
      * trail on the details screen is sorted by the clock, so that showed up as
      * Resolved and Closed sitting above Ticket Raised.
      *
-     * A closed ticket is settled a day to three later. An open one has not moved,
-     * so its last update is the moment it was raised, which is what the details
-     * screen reads back as the raise time.
+     * A ticket that has moved on is settled a day to three later. One still
+     * open has not moved, so its last update is the moment it was raised, which
+     * is what the details screen reads back as the raise time.
      */
     const raisedOn = -(2 + Math.floor(random() * 56))
     const raised = day(raisedOn)

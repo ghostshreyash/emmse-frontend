@@ -78,7 +78,7 @@ const exportColumns: ExportColumn<TicketRow>[] = [
  * Reports as tables, so tickets are a table too, with the same toolbar, sorting
  * and export as those screens. The story moves to the details page.
  *
- * A ticket is Open or Closed and nothing in between - see `ticketStatuses`.
+ * A ticket is Open, In Progress or Completed - see `ticketStatuses`.
  * Whether the desk has started on it is the desk's business; what the
  * enterprise can act on is whether the ticket is still outstanding.
  */

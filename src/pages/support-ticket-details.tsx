@@ -14,13 +14,15 @@ import { control } from "@/lib/data-table"
 import { workStatus, type WorkStatus } from "@/lib/status"
 
 /**
- * Plain-English standing. A ticket is Open or Closed - see `ticketStatuses` -
- * so there are two things to say about one.
+ * Plain-English standing. A ticket is Open, In Progress or Completed - see
+ * `ticketStatuses` - so there are three things to say about one.
  */
 const narrative = (status: WorkStatus, by: string) =>
-  status === "closed"
-    ? "Settled and closed out. If the problem comes back, report it again and a fresh ticket is raised."
-    : `Raised by ${by} and still with the OLIVINE helpdesk. The answer lands here and on the trail below.`
+  status === "completed"
+    ? "Dealt with and settled. If the problem comes back, report it again and a fresh ticket is raised."
+    : status === "in_progress"
+      ? "The OLIVINE helpdesk has picked it up and is working on it. The answer lands here and on the trail below."
+      : `Raised by ${by} and waiting for the OLIVINE helpdesk to pick it up.`
 
 /**
  * One support ticket: what was reported, what was attached, what came back, and
