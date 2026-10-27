@@ -120,14 +120,20 @@ export const inspectionStatus: Partial<Record<WorkStatus, (typeof workStatus)[Wo
 export const inspectionStatuses: WorkStatus[] = ["pending", "in_progress", "completed"]
 
 /**
- * A support ticket is Open or Closed, and nothing in between. The desk works it
- * either way, so "In Progress" told the enterprise nothing it could act on —
- * what it wants to know is whether the ticket is still outstanding.
+ * A support ticket runs **Open → In Progress → Completed**.
+ *
+ * In Progress is shown rather than folded into Open: the first thing the
+ * reporter wants to know is whether anyone has picked the thing up, and a
+ * ticket sitting untouched reads very differently from one being worked.
+ *
+ * Settled work is Completed rather than Closed — the desk's own word, which
+ * from outside the desk reads as "shut" when what it means is dealt with.
  *
  * This is the whole list and what the Status filter offers; there is no second
- * list for the filter to drift from.
+ * list for the filter to drift from. EVITA carries the same three on the same
+ * rows — see its `ticketStatuses`.
  */
-export const ticketStatuses: WorkStatus[] = ["open", "closed"]
+export const ticketStatuses: WorkStatus[] = ["open", "in_progress", "completed"]
 
 /** Categorical series colours, in order, for charts with arbitrary groups */
 export const chartSeries = [

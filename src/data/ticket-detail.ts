@@ -100,20 +100,20 @@ export function ticketDetail(row: TicketRow): TicketDetail {
    */
   const raisedAt =
     row.status === "open" ? row.lastUpdated : at(row.raised, 9 + Math.floor(random() * 4), Math.floor(random() * 6) * 10)
-  /* A ticket is Open or Closed, and only a closed one has an answer against it */
-  const settled = row.status === "closed"
-
   /*
-   * The trail: raised, and - once it is closed - picked up, answered and closed.
-   * The pick-up line is on the trail rather than in the status, which is where
-   * the detail of how the desk worked it belongs.
+   * Picked up once the desk has it, settled once it is done. Only a settled
+   * ticket has an answer against it; one in progress has a pick-up and nothing
+   * more, which is exactly what the reporter is being told.
    */
+  const working = row.status === "in_progress" || row.status === "completed"
+  const settled = row.status === "completed"
+
+  /* The trail: raised, then picked up, then - once it is settled - answered */
   const history: TicketEvent[] = [
     { at: raisedAt, by: row.raisedBy, action: "Ticket Raised", note: `${row.category} · from ${row.source}` },
   ]
 
-  let resolution: TicketResolution | undefined
-  if (settled) {
+  if (working)
     history.push({
       at: plusHours(raisedAt, 1 + Math.floor(random() * 4)),
       by: owner,
@@ -121,10 +121,12 @@ export function ticketDetail(row: TicketRow): TicketDetail {
       note: `Assigned to ${owner}`,
     })
 
+  let resolution: TicketResolution | undefined
+  if (settled) {
     const resolvedAt = plusHours(row.lastUpdated, 0)
     resolution = { by: owner, at: resolvedAt, summary: pick(resolutions) }
     history.push({ at: resolvedAt, by: owner, action: "Ticket Resolved", note: resolution.summary })
-    history.push({ at: plusHours(resolvedAt, 2), by: owner, action: "Ticket Closed", note: "Confirmed with the reporter" })
+    history.push({ at: plusHours(resolvedAt, 2), by: owner, action: "Ticket Completed", note: "Confirmed with the reporter" })
   }
 
   /* --- what the reporter attached --- */
