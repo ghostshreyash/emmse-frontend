@@ -90,7 +90,7 @@ const notes = [
 
 const descriptions = [
   "Carry out scheduled preventive maintenance: de-dust the panel, clean contact surfaces, verify terminations and record post-work readings.",
-  "Condition-based intervention following elevated thermal readings. Clean, re-torque and re-scan the affected compartment.",
+  "Follow-up intervention after elevated thermal readings. Clean, re-torque and re-scan the affected compartment.",
   "Fire preventive maintenance round: inspect suppression readiness, apply retardant treatment and log the outcome.",
 ]
 
@@ -106,8 +106,9 @@ export function taskDetail(row: TaskRow): TaskDetail {
   }
   const pick = <T,>(pool: readonly T[]) => pool[Math.floor(random() * pool.length)]
 
-  const started = row.status !== "open" || true // every row in the mock has at least started
-  const finished = row.status === "open" || row.status === "assigned" || row.status === "completed" || row.status === "rejected"
+  // An Open task has been raised but not started, so it has nothing recorded against it
+  const started = row.status !== "open"
+  const finished = row.status === "assigned" || row.status === "completed" || row.status === "rejected"
 
   const registered = row.assetTag ? findRegisteredAsset(row.assetTag) : undefined
   const detail: TaskDetail = {
@@ -140,7 +141,7 @@ export function taskDetail(row: TaskRow): TaskDetail {
   }
 
   // The two add-on activities only apply to some jobs, which is what "Not performed" is for
-  if (row.type === "Fire Preventive" || random() < 0.2)
+  if (row.type === "Fire Preventive Maintenance" || random() < 0.2)
     detail.firePrevention = {
       system: pick(fireSystems),
       remarks: "Installed and function-tested; tamper seal intact.",

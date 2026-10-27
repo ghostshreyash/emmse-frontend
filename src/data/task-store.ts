@@ -25,8 +25,34 @@ export const useTaskDetails = () => useSyncExternalStore(subscribe, () => detail
 
 export const findTask = (id?: string) => (id ? rows.find((r) => r.id === id) : undefined)
 
+/** Delete a task that has not started; anything further along is kept on the book */
+export function deleteTask(id: string) {
+  const task = rows.find((r) => r.id === id)
+  if (!task || task.status !== "open") return false
+  rows = rows.filter((r) => r.id !== id)
+  const rest = { ...details }
+  delete rest[id]
+  details = rest
+  emit()
+  return true
+}
+
+/**
+ * Change an Open task's booking and details. Work already under way is not
+ * edited here - what was assigned is then part of what was done.
+ */
+export function updateTask(id: string, row: Partial<Omit<TaskRow, "id">>, detail: Partial<TaskDetail> = {}) {
+  const task = rows.find((r) => r.id === id)
+  if (!task || task.status !== "open") return false
+  rows = rows.map((r) => (r.id === id ? { ...r, ...row } : r))
+  details = { ...details, [id]: { ...details[id], ...detail } }
+  emit()
+  return true
+}
+
 /** Next free id for a task raised in this session */
-const nextId = () => `MT-${2300 + rows.filter((r) => r.id.startsWith("MT-23")).length}`
+// One past the highest raised so far, so a deleted task's number is never handed out again
+const nextId = () => `MT-${Math.max(2299, ...rows.map((r) => Number(r.id.slice(3)) || 0)) + 1}`
 
 /**
  * Add a task to the book, with whatever of its execution record is already known
@@ -63,7 +89,8 @@ export function addTaskFromInspection(source: {
     {
       asset: source.asset,
       plant: source.plant,
-      type: "Condition-Based",
+      // A fire prevention inspection raises fire preventive work; anything else, preventive
+      type: /fire/i.test(source.activity) ? "Fire Preventive Maintenance" : "Preventive Maintenance",
       elpremar: source.elpremar,
       scheduled: source.scheduled,
       slot: source.slot,

@@ -34,6 +34,7 @@ import { getDashboardData, plants } from "@/data/dashboard"
 import { control, td, th } from "@/lib/data-table"
 import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
 import { healthStatus } from "@/lib/status"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 /* ---------- Filters ---------- */
 
@@ -140,9 +141,9 @@ const exportColumns: ExportColumn<AssetRecord>[] = [
 /* ---------- Small pieces ---------- */
 
 /** A toolbar dropdown whose first option clears it */
-function Choice({ value, onChange, options, all, className }: { value: string; onChange: (v: string) => void; options: readonly string[]; all: string; className?: string }) {
+function Choice({ value, onChange, options, all, className, disabled }: { value: string; onChange: (v: string) => void; options: readonly string[]; all: string; className?: string; disabled?: boolean }) {
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger size="sm" className={cn(control, "bg-card", className)} aria-label={all}>
         <SelectValue />
       </SelectTrigger>
@@ -166,7 +167,10 @@ export function AssetsPage() {
   // Assets due on or before this date count as upcoming and get a green row
   const soon = format(addDays(new Date(), UPCOMING_DAYS), "yyyy-MM-dd")
 
-  const [filters, setFilters] = useState<Filters>(noFilters)
+  // An EMMSE-0 user only works in the plant they picked, so the Plant filter is held there
+  const lockedPlant = useLockedPlant()
+  const startFilters = useMemo<Filters>(() => ({ ...noFilters, plant: lockedPlant ?? noFilters.plant }), [lockedPlant])
+  const [filters, setFilters] = useState<Filters>(startFilters)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0])
 
@@ -189,7 +193,7 @@ export function AssetsPage() {
     setPage(1)
   }
   const reset = () => {
-    setFilters(noFilters)
+    setFilters(startFilters)
     setPage(1)
   }
 
@@ -267,7 +271,7 @@ export function AssetsPage() {
             />
           </div>
           <div className="contents">
-            <Choice value={filters.plant} onChange={(v) => set({ plant: v })} options={plants.map((p) => p.name)} all="All Plants" className="w-36" />
+            <Choice value={filters.plant} onChange={(v) => set({ plant: v })} options={plants.map((p) => p.name)} all="All Plants" className="w-36" disabled={!!lockedPlant} />
             <Choice
               value={filters.department}
               onChange={(v) => set({ department: v, subDepartment: "all" })}

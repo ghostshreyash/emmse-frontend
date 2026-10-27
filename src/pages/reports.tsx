@@ -1,0 +1,411 @@
+import { useMemo, useState } from "react"
+import { useNavigate } from "react-router"
+import { Eye, FileText, Search, Sheet, X } from "lucide-react"
+import { cn } from "cn"
+
+import { SortHead, TablePager } from "@/components/common/data-table"
+import { DocumentDialog, type OpenDocument } from "@/components/common/document-dialog"
+import { ActivityTotalCards } from "@/components/common/activity-totals"
+import { PageHeader } from "@/components/common/page-header"
+import { ContaminationTrend, HealthTrend, MaintenanceTrend } from "@/components/common/trend-charts"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { plants } from "@/data/dashboard"
+import { healthBandFor } from "@/data/master-data"
+import { criticalityTone } from "@/data/operations"
+import { reportDocuments, type ReportKind } from "@/data/report-documents"
+import { activityTotals, contaminationTrend, estateInspections, healthTrend, maintenanceTrend } from "@/data/report-trends"
+import { findingLook, findings, reportRows, type Finding, type ReportRow } from "@/data/reports"
+import { control, nextSort, sortRows, td, th, type Sort } from "@/lib/data-table"
+import { exportCsv, exportPdf, type ExportColumn } from "@/lib/table-export"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
+
+const ANY = "all"
+
+/** The three documents by kind, so a column can reach its own one */
+const documentFor = Object.fromEntries(reportDocuments.map((doc) => [doc.kind, doc])) as Record<
+  ReportKind,
+  (typeof reportDocuments)[number]
+>
+
+type SortKey = "assetId" | "asset" | "plant" | "criticality" | "contamination" | "hygiene" | "cleaning"
+
+const findingRank: Record<Finding, number> = { Healthy: 0, Alarming: 1, "At Risk": 2 }
+
+/** Sorted worst-first the same way the findings are: the ones that matter most sort together */
+const criticalityRank: Record<string, number> = { Low: 0, Medium: 1, High: 2 }
+
+/** dd-MM-yyyy sorts as a moment, not as text, or December would come before February */
+const asMoment = (dmy: string) => {
+  if (!dmy) return 0
+  const [d, m, y] = dmy.split("-").map(Number)
+  return new Date(y, m - 1, d).getTime()
+}
+
+const sortValue: Record<SortKey, (r: ReportRow) => string | number> = {
+  assetId: (r) => r.asset.tagId,
+  asset: (r) => r.asset.name,
+  plant: (r) => r.asset.plant,
+  criticality: (r) => criticalityRank[r.asset.criticality],
+  contamination: (r) => findingRank[r.contaminationStatus],
+  hygiene: (r) => r.hygieneOpen,
+  cleaning: (r) => asMoment(r.maintenance?.on ?? ""),
+}
+
+/**
+ * Columns shared by the CSV and PDF exports.
+ *
+ * The export carries the Inspection and Task the reports were read off even
+ * though the table no longer shows them: chasing a figure back to the activity
+ * that produced it is usually why this screen gets exported, and an export has
+ * no detail screen to click into.
+ */
+const exportColumns: ExportColumn<ReportRow>[] = [
+  { header: "Asset ID", value: (r) => r.asset.tagId },
+  { header: "Asset", value: (r) => r.asset.name },
+  { header: "Plant", value: (r) => r.asset.plant },
+  { header: "Category", value: (r) => r.asset.category },
+  { header: "Criticality", value: (r) => r.asset.criticality },
+  { header: "Health Score", value: (r) => String(r.healthScore) },
+  { header: "Health", value: (r) => healthBandFor(r.healthScore).label },
+  { header: "Contamination Level", value: (r) => r.contamination },
+  { header: "Hygiene", value: (r) => (r.hygieneOpen ? `${r.hygieneOpen} of ${r.hygiene.length} open` : "All points clear") },
+  { header: "Last Cleaned", value: (r) => r.maintenance?.on ?? "Not cleaned yet" },
+  { header: "Inspection", value: (r) => `${r.inspection.id} (${r.inspection.activity})` },
+  { header: "Task", value: (r) => (r.maintenance ? `${r.maintenance.id} (${r.maintenance.type})` : "") },
+]
+
+/**
+ * Reports & Analytics: every asset that has been inspected, and the three
+ * documents its record holds.
+ *
+ * One row per asset rather than one row per report, and the three reports are
+ * three columns at the right of it - Contamination, Hygiene, Cleaning - each
+ * reading its own headline with View Report under it, so the document itself
+ * opens from the table without going through the asset first. That is what the
+ * screen is for: the three reports are the thing being read.
+ *
+ * The Inspection ID and Task ID the reports were read off are deliberately not
+ * columns here. They are provenance rather than content - worth having when a
+ * figure is being chased, which is what the asset's own screen and the export
+ * are for, and nine columns of them crowded out the reports themselves.
+ *
+ * EMMS-E is one enterprise, so there is no customer filter - the plant filter
+ * is the widest cut available, as it is on Tasks and Inspections.
+ */
+export function ReportsPage() {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState<OpenDocument | null>(null)
+  const [query, setQuery] = useState("")
+  // An EMMSE-0 user only works in the plant they picked, so the filter is held there
+  const lockedPlant = useLockedPlant()
+  const allPlants = lockedPlant ?? ANY
+  const [plant, setPlant] = useState(allPlants)
+  const [category, setCategory] = useState(ANY)
+  const [status, setStatus] = useState(ANY)
+  const [sort, setSort] = useState<Sort<SortKey>>(null)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+
+  /** Only the categories that actually have a report, so the filter cannot empty the table */
+  const categories = useMemo(() => [...new Set(reportRows.map((r) => r.asset.category))].sort(), [])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return reportRows.filter((r) => {
+      if (plant !== ANY && r.asset.plant !== plant) return false
+      if (category !== ANY && r.asset.category !== category) return false
+      /* Either report's standing counts: an asset is on screen if either flags it */
+      if (status !== ANY && r.contaminationStatus !== status && r.hygieneStatus !== status) return false
+      if (!q) return true
+      const haystack = [
+        r.asset.tagId,
+        r.asset.name,
+        r.asset.plant,
+        r.asset.category,
+        r.asset.department,
+        r.contamination,
+        r.contaminationStatus,
+        r.hygieneStatus,
+        /* Still searchable, so a ticket quoting an Inspection ID finds its asset */
+        r.inspection.id,
+        r.inspection.activity,
+        r.maintenance?.id ?? "",
+        r.maintenance?.type ?? "",
+      ]
+      return haystack.some((f) => f.toLowerCase().includes(q))
+    })
+  }, [query, plant, category, status])
+
+  const sorted = useMemo(() => sortRows(filtered, sort, sortValue), [filtered, sort])
+
+  /*
+   * The charts read the filtered set, not the whole register, so what is drawn
+   * above the table is always what the table is showing - pick one plant and
+   * the trends follow it down. Sorting and paging do not touch them: the same
+   * rows in a different order are the same month.
+   */
+  const trends = useMemo(
+    () => ({ health: healthTrend(filtered), contamination: contaminationTrend(filtered), maintenance: maintenanceTrend(filtered) }),
+    [filtered]
+  )
+
+  /* The cards are the totals of the maintenance chart, so the two always agree */
+  const totals = useMemo(
+    () => activityTotals(trends.maintenance, estateInspections(filtered)),
+    [trends.maintenance, filtered]
+  )
+
+  const pages = Math.max(1, Math.ceil(sorted.length / pageSize))
+  // Narrowing the results can strand the viewer past the last page, so clamp on read
+  const current = Math.min(page, pages)
+  const start = (current - 1) * pageSize
+  const shown = sorted.slice(start, start + pageSize)
+
+  const filtersOn = !!query || plant !== allPlants || category !== ANY || status !== ANY
+  const clearFilters = () => {
+    setQuery("")
+    setPlant(allPlants)
+    setCategory(ANY)
+    setStatus(ANY)
+    setPage(1)
+  }
+
+  /** Open one asset's copy of one report, named for that asset when it is saved */
+  const openReport = (row: ReportRow, kind: ReportKind) => {
+    const doc = documentFor[kind]
+    setOpen({
+      title: doc.title,
+      file: doc.file,
+      detail: `${row.asset.tagId} · ${doc.detail}`,
+      fileName: doc.fileName(row.asset.tagId),
+    })
+  }
+
+  return (
+    <div>
+      <PageHeader
+        title="Reports & Analytics"
+        description="Contamination, hygiene and cleaning reports for every inspected asset."
+        breadcrumbs={[{ label: "Reports & Analytics" }]}
+        actions={
+          <>
+            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportCsv("reports", exportColumns, sorted)}>
+              <Sheet className="size-3.5" /> Export CSV
+            </Button>
+            <Button variant="outline" size="sm" className={cn(control, "bg-card")} onClick={() => exportPdf("Reports & Analytics", exportColumns, sorted)}>
+              <FileText className="size-3.5" /> Export PDF
+            </Button>
+          </>
+        }
+      />
+
+      {/* What was carried out, then the three trends — both over whatever the filters have narrowed to */}
+      <ActivityTotalCards totals={totals} />
+
+      {/* The three trends from the mockup, over whatever the filters have narrowed to */}
+      <div className="mb-4 grid gap-3 xl:grid-cols-3">
+        <HealthTrend data={trends.health} />
+        <ContaminationTrend data={trends.contamination} />
+        <MaintenanceTrend data={trends.maintenance} />
+      </div>
+
+      <section className="flex flex-col rounded-lg bg-card text-card-foreground shadow-xs ring-1 ring-foreground/10">
+        {/* Search hard left, filters centred, clear hard right — as on Tasks and Inspections */}
+        <div className="flex flex-wrap items-center gap-2 px-3 py-2.5">
+          <div className="relative">
+            <Search className="absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setPage(1) }}
+              placeholder="Search asset, plant or report..."
+              className={cn(control, "w-60 bg-card pl-7")}
+            />
+          </div>
+          <div className="mx-auto flex flex-wrap items-center gap-2">
+            <Select value={plant} onValueChange={(v) => { setPlant(v); setPage(1) }} disabled={!!lockedPlant}>
+              <SelectTrigger size="sm" className={cn(control, "w-44 bg-card")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>All Plants</SelectItem>
+                {plants.map((p) => <SelectItem key={p.id} value={p.name}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={category} onValueChange={(v) => { setCategory(v); setPage(1) }}>
+              <SelectTrigger size="sm" className={cn(control, "w-44 bg-card")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>All Categories</SelectItem>
+                {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
+              <SelectTrigger size="sm" className={cn(control, "w-40 bg-card")}><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ANY}>All Findings</SelectItem>
+                {findings.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button variant="outline" size="sm" className={cn(control, "bg-card")} disabled={!filtersOn} onClick={clearFilters}>
+            <X className="size-3.5" /> Clear Filters
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto px-2 pb-3">
+          <Table>
+            <TableHeader>
+              {/* The three reports are grouped under one head, so the columns read as documents */}
+              <TableRow className="bg-muted/60 hover:bg-muted/60">
+                <TableHead colSpan={5} className={cn(th, "border-b-0")} />
+                <TableHead colSpan={3} className={cn(th, "border-b-0 border-l border-foreground/10 text-center")}>
+                  Reports — open any one as a PDF
+                </TableHead>
+              </TableRow>
+              <TableRow className="bg-muted/60 hover:bg-muted/60">
+                <TableHead className={cn(th, "w-10")}>#</TableHead>
+                <SortHead label="Asset ID" column="assetId" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
+                <SortHead label="Asset" column="asset" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
+                <SortHead label="Plant" column="plant" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
+                <SortHead label="Criticality" column="criticality" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
+                <SortHead
+                  label="Contamination"
+                  column="contamination"
+                  sort={sort}
+                  onSort={(c) => setSort(nextSort(sort, c))}
+                  className="border-l border-foreground/10"
+                />
+                <SortHead label="Hygiene" column="hygiene" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
+                <SortHead label="Cleaning" column="cleaning" sort={sort} onSort={(c) => setSort(nextSort(sort, c))} />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shown.map((r, i) => (
+                  <TableRow key={r.asset.tagId} onClick={() => navigate(`/reports/${r.asset.tagId}`)} className="cursor-pointer">
+                    <TableCell className={cn(td, "tabular-nums text-muted-foreground")}>{start + i + 1}</TableCell>
+                    <TableCell className={cn(td, "font-medium whitespace-nowrap")}>{r.asset.tagId}</TableCell>
+                    <TableCell className={cn(td, "font-medium")}>
+                      {r.asset.name}
+                      <span className="block text-[0.65rem] text-muted-foreground">{r.asset.category}</span>
+                    </TableCell>
+                    <TableCell className={td}>
+                      {r.asset.plant}
+                      <span className="block text-[0.65rem] text-muted-foreground">{r.asset.department}</span>
+                    </TableCell>
+                    <TableCell className={cn(td, "whitespace-nowrap")}>
+                      <span className={cn("rounded px-1.5 py-0.5 text-[0.65rem] font-semibold", criticalityTone[r.asset.criticality])}>
+                        {r.asset.criticality}
+                      </span>
+                    </TableCell>
+
+                    {/* ---------- The three reports ---------- */}
+
+                    {/*
+                     * Contamination carries the Health Score, because this is the
+                     * report that produces it - the dust level behind the score is
+                     * on the asset's own screen rather than crowding the column.
+                     */}
+                    <ReportCell
+                      className="border-l border-foreground/10"
+                      onView={() => openReport(r, "contamination")}
+                      headline={
+                        <span className="flex items-center gap-1.5">
+                          <span aria-hidden className={cn("size-2 shrink-0 rounded-full", findingLook[r.contaminationStatus].dot)} />
+                          <span className="text-sm leading-none font-bold tabular-nums">{r.healthScore}</span>
+                          <span className="text-[0.7rem] text-muted-foreground">{r.contaminationStatus}</span>
+                        </span>
+                      }
+                    />
+
+                    {/* Hygiene: point-specific and carries no score, so it reports its open points */}
+                    <ReportCell
+                      onView={() => openReport(r, "hygiene")}
+                      headline={
+                        <Badge variant={findingLook[r.hygieneStatus].badge} className="rounded px-1.5 py-0 text-[0.65rem]">
+                          {r.hygieneOpen ? `${r.hygieneOpen} of ${r.hygiene.length} open` : "All clear"}
+                        </Badge>
+                      }
+                    />
+
+                    {/* Cleaning: the before and after of a clean, so there is none until one has happened */}
+                    <ReportCell
+                      onView={r.maintenance ? () => openReport(r, "cleaning") : undefined}
+                      missing="Not cleaned yet"
+                      headline={
+                        r.maintenance ? (
+                          <>
+                            <span className="text-[0.7rem] tabular-nums">{r.maintenance.on}</span>
+                            <span className="block text-[0.65rem] text-muted-foreground">Next {r.nextCleaningDue}</span>
+                          </>
+                        ) : null
+                      }
+                    />
+                  </TableRow>
+              ))}
+              {sorted.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-xs text-muted-foreground">
+                    No asset report matches the filters.
+                  </TableCell>
+                </TableRow>
+              ) : null}
+            </TableBody>
+          </Table>
+
+          <TablePager
+            page={current}
+            pages={pages}
+            pageSize={pageSize}
+            total={sorted.length}
+            start={start}
+            onPage={setPage}
+            onPageSize={(n) => { setPageSize(n); setPage(1) }}
+          />
+        </div>
+      </section>
+
+      <DocumentDialog document={open} onClose={() => setOpen(null)} />
+    </div>
+  )
+}
+
+/**
+ * One report in the table: what it says about this asset, and the way into the
+ * document under it.
+ *
+ * The click is stopped here rather than on the button, so neither the button nor
+ * the space around it opens the asset behind the row - the cell belongs to the
+ * report, and the rest of the row opens the asset.
+ *
+ * A report that does not exist yet keeps its cell and says so, so the column
+ * reads as "no cleaning report" rather than as a blank nobody can account for.
+ */
+function ReportCell({
+  headline,
+  onView,
+  missing,
+  className,
+}: {
+  headline: React.ReactNode
+  /** Absent when this asset has no such report yet */
+  onView?: () => void
+  missing?: string
+  className?: string
+}) {
+  return (
+    <TableCell className={cn(td, "align-top whitespace-nowrap", className)} onClick={(e) => e.stopPropagation()}>
+      {onView ? (
+        <>
+          {/* Its own block, or an inline headline such as the hygiene badge keeps the button beside it */}
+          <div>{headline}</div>
+          <Button variant="outline" size="xs" className="mt-1.5 bg-card" onClick={onView}>
+            <Eye className="size-3" /> View Report
+          </Button>
+        </>
+      ) : (
+        <span className="text-[0.7rem] text-muted-foreground/60">{missing}</span>
+      )}
+    </TableCell>
+  )
+}

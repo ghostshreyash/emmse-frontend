@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react"
-import { useNavigate } from "react-router"
 import { format } from "date-fns"
-import { Bell, Leaf, LogOut, MapPin } from "lucide-react"
+import { Bell, Leaf, MapPin } from "lucide-react"
 
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import { UserMenu } from "@/components/layout/user-menu"
+import { plants } from "@/data/dashboard"
 import { useAuth } from "@/lib/auth/context"
 
 function useClock() {
@@ -15,11 +16,12 @@ function useClock() {
   return now
 }
 
-/** EMMS-E top bar (dashboard mockup, page 31): wordmark, tagline, site, clock, alerts and Logout */
+/** EMMS-E top bar (dashboard mockup, page 31): wordmark, tagline, site, clock, alerts and the account menu */
 export function Topbar() {
   const now = useClock()
-  const navigate = useNavigate()
-  const { user, signOut } = useAuth()
+  const { user, session } = useAuth()
+  // A plant-level user works at the plant they picked, so the top bar names that one
+  const site = (user?.choosesPlant && plants.find((p) => p.id === session?.plantId)?.name) || user?.plant
 
   return (
     <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-4 border-b border-topbar-border bg-topbar px-4 text-topbar-foreground">
@@ -48,7 +50,7 @@ export function Topbar() {
         <MapPin className="size-5 shrink-0" />
         <span>
           <span className="block font-semibold">{user?.enterprise}</span>
-          <span className="block text-topbar-muted-foreground">{user?.plant}</span>
+          <span className="block text-topbar-muted-foreground">{site}</span>
         </span>
       </div>
 
@@ -64,17 +66,7 @@ export function Topbar() {
         </span>
       </button>
 
-      <button
-        type="button"
-        onClick={() => {
-          signOut()
-          navigate("/login?reason=signed-out", { replace: true })
-        }}
-        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-white/10"
-      >
-        <LogOut className="size-5" />
-        <span className="hidden sm:inline">Logout</span>
-      </button>
+      <UserMenu />
     </header>
   )
 }

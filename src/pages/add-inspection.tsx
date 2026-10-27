@@ -4,153 +4,171 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import {
-  addMonths,
-  eachDayOfInterval,
-  endOfMonth,
-  endOfWeek,
-  format,
-  isSameDay,
-  isSameMonth,
-  isValid,
-  parse,
-  startOfMonth,
-  startOfWeek,
-} from "date-fns"
-import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  HardHat,
-  Mail,
-  Paperclip,
-  Phone,
-  Send,
-  UserRound,
-} from "lucide-react"
+import { format, isValid, parse } from "date-fns"
+import { ArrowLeft, Paperclip, Send, UserRound } from "lucide-react"
 import { cn } from "cn"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  AssignElpremarDialog, type AssignResult, type Booking,
+  AssignElpremarDialog, type AssignResult,
 } from "@/components/common/assign-elpremar-dialog"
+import { ElpremarRail } from "@/components/common/elpremar-booking"
 import { PageHeader } from "@/components/common/page-header"
 import { SectionCard } from "@/components/common/section-card"
-import { SelectField, TextareaField, TextField } from "@/components/form/fields"
-import { enterpriseInfo, plants as enterprisePlants } from "@/data/dashboard"
-import { useInspectionRows } from "@/data/inspection-store"
+import { AssetIdField } from "@/components/form/asset-id-field"
+import { MultiSelectField, SelectField, TextareaField, TextField } from "@/components/form/fields"
+import { useAssetRows } from "@/data/asset-store"
+import { plants as enterprisePlants } from "@/data/dashboard"
+import { useElpremarBookings } from "@/data/elpremar-bookings"
 import { activityTypes, areas, assetCategories, durations, priorities, slotLabel, type Elpremar } from "@/data/operations"
-import { useTaskRows } from "@/data/task-store"
-import { control as controlSize, td, th } from "@/lib/data-table"
-import { workStatus, type WorkStatus } from "@/lib/status"
-import { required } from "@/lib/validation"
+import { control as controlSize } from "@/lib/data-table"
+import { required, today } from "@/lib/validation"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 /** This enterprise's plants; the enterprise itself is fixed, so it is not asked for */
 const plants = enterprisePlants.map((p) => p.name)
 
-const schema = z.object({
+/** The fields every booking has; which asset fields apply depends on the screen */
+const baseSchema = z.object({
   plant: required("Plant"),
   area: required("Location / Area"),
-  // A site may not know the category or the exact activity at intake, so neither gates the form
+  // One category on an inspection (it comes with the asset); a visit can cover several
   category: z.string().optional(),
-  activity: z.string().optional(),
-  // Two digits, so one activity covers 1-99 assets; blank means it was not counted
+  categories: z.array(z.string()).optional(),
+  assetTag: z.string().optional(),
+  assetName: z.string().optional(),
+  // Two digits, so one visit covers 1-99 assets; blank means it was not counted
   assetCount: z
     .string()
     .optional()
     .refine((v) => !v || /^\d{1,2}$/.test(v), "Enter a number up to 2 digits")
     .refine((v) => !v || Number(v) >= 1, "Enter at least 1 asset"),
-  date: required("Scheduled date"),
+  // Several inspections can be booked in one go, so the activity takes more than one type
+  activity: z.array(z.string()).optional(),
+  // Booked from today on; yyyy-MM-dd compares correctly as text
+  date: required("Scheduled date").refine((v) => v >= today(), "Pick today or a later date"),
   time: required("Start time"),
   duration: z.string().optional(),
   description: required("Task description"),
   priority: required("Priority"),
 })
-type AssignValues = z.infer<typeof schema>
+export type AssignValues = z.infer<typeof baseSchema>
 
-/*
- * Mock availability: the days this ELPREMAR cannot take work (leave or otherwise
- * unavailable). Every other day in the month reads as available, so the calendar
- * answers one question — can they be booked that day or not.
+/**
+ * What each screen requires on top of the base: an inspection is of one register
+ * asset (picked by its ID, which brings its name and category); a visit covers
+ * one or more categories of asset in its area. Kept as refinements so both
+ * screens share one set of form values.
  */
-const unavailableDays = new Set([26, 31])
+const schemaFor = (pickAsset: boolean) =>
+  baseSchema.superRefine((v, ctx) => {
+    const missing = (path: keyof AssignValues, message: string) => ctx.addIssue({ code: "custom", path: [path], message })
+    if (pickAsset) {
+      if (!v.assetTag?.trim()) missing("assetTag", "Asset ID is required")
+      if (!v.assetName?.trim()) missing("assetName", "Asset Name is required")
+      if (!v.category?.trim()) missing("category", "Asset Category is required")
+    } else if (!v.categories?.length) {
+      missing("categories", "Pick at least one asset category")
+    }
+  })
 
-const availabilityStyle = {
-  available: { dot: "bg-healthy", label: "Available" },
-  unavailable: { dot: "bg-critical", label: "Not Available" },
-}
-
-/** `selected` is the day the activity is booked for, highlighted in the grid */
-function AvailabilityCalendar({ selected }: { selected?: Date }) {
-  // Opens on the booked month; the caller remounts on a new booking so this resets
-  const [month, setMonth] = useState(() => startOfMonth(selected ?? new Date()))
-  const today = new Date()
-
-  const days = eachDayOfInterval({ start: startOfWeek(startOfMonth(month)), end: endOfWeek(endOfMonth(month)) })
-
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between rounded-md bg-info-soft px-2 py-1">
-        <Button variant="ghost" size="icon-sm" onClick={() => setMonth((m) => addMonths(m, -1))} aria-label="Previous month"><ChevronLeft /></Button>
-        <span className="text-sm font-semibold">{format(month, "MMMM yyyy")}</span>
-        <Button variant="ghost" size="icon-sm" onClick={() => setMonth((m) => addMonths(m, 1))} aria-label="Next month"><ChevronRight /></Button>
-      </div>
-      <div className="grid grid-cols-7 text-center text-xs">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-          <div key={d} className="py-1 font-medium text-muted-foreground">{d}</div>
-        ))}
-        {days.map((day) => {
-          const inMonth = isSameMonth(day, month)
-          const state = unavailableDays.has(day.getDate()) ? "unavailable" : "available"
-          const isSelected = !!selected && isSameDay(day, selected)
-          const isToday = isSameDay(day, today)
-          return (
-            <div key={day.toISOString()} className="flex flex-col items-center py-0.5">
-              <span
-                className={cn(
-                  "flex size-7 items-center justify-center rounded-md",
-                  !inMonth && "text-muted-foreground/50",
-                  // The booked day is filled; today keeps a ring so both stay readable
-                  isSelected && "bg-primary font-semibold text-primary-foreground",
-                  isToday && !isSelected && "ring-1 ring-primary/50 font-semibold text-primary"
-                )}
-              >
-                {format(day, "d")}
-              </span>
-              <span className={cn("mt-0.5 size-1.5 rounded-full", inMonth ? availabilityStyle[state].dot : "bg-transparent")} />
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
-        {Object.values(availabilityStyle).map((s) => (
-          <span key={s.label} className="flex items-center gap-1.5">
-            <span className={cn("size-2 rounded-full", s.dot)} /> {s.label}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
+/** What changes between the screens that use this form: their wording, and what Submit does */
+type IntakeProps = {
+  title: string
+  /** The list the form is reached from */
+  listLabel: string
+  listPath: string
+  cardTitle: string
+  intro: string
+  submitLabel: string
+  /** Shown in the booking dialog until an activity type is picked */
+  untitled: string
+  /**
+   * Add Inspection picks one register asset by its ID (name and category follow);
+   * without it the form asks for an asset category and a count, and starts with
+   * every activity type ticked, as Schedule a Visit does.
+   */
+  pickAsset?: boolean
+  /** Editing an existing booking: what it holds now, and who it is booked to */
+  initial?: Partial<AssignValues>
+  initialElpremar?: Elpremar
+  /** Overrides the header trail and back link, e.g. to point back at a details page */
+  breadcrumbs?: { label: string; to?: string; onClick?: () => void }[]
+  back?: { label: string; onClick: () => void }
+  /** When given, the left footer button cancels the edit instead of clearing the form */
+  onCancel?: () => void
+  onSubmit: (values: AssignValues, elpremar: Elpremar) => void
 }
 
 /** The intake form for a new inspection activity, reached from the Inspections list (ported from OCC) */
 export function AddInspectionPage() {
+  return (
+    <ActivityIntake
+      title="Add Inspection Activity"
+      listLabel="Inspections"
+      listPath="/inspection-activities"
+      cardTitle="Assign Activity to ELPREMAR"
+      intro="Create and assign a new inspection activity for electrical asset assessment at the selected location."
+      submitLabel="Add Activity"
+      untitled="New Inspection Activity"
+      pickAsset
+      // TODO: POST /inspection-activities
+      onSubmit={(_, elpremar) => toast.success(`Activity assigned to ${elpremar.name}`)}
+    />
+  )
+}
+
+/**
+ * The inspection intake form itself: where, what, when and by whom, with the
+ * ELPREMAR booked through the availability dialog. Add Inspection and Schedule
+ * a Visit both use it, so the two forms stay the same.
+ */
+export function ActivityIntake({
+  title,
+  listLabel,
+  listPath,
+  cardTitle,
+  intro,
+  submitLabel,
+  untitled,
+  pickAsset = false,
+  initial,
+  initialElpremar,
+  breadcrumbs,
+  back,
+  onCancel,
+  onSubmit,
+}: IntakeProps) {
+  // An EMMSE-0 user books work only at the plant they picked, so Plant is preselected and held there
+  const lockedPlant = useLockedPlant()
   const form = useForm<AssignValues>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schemaFor(pickAsset)),
     defaultValues: {
-      plant: plants[0], area: "", category: "", assetCount: "", activity: "",
+      plant: plants[0], area: "", assetTag: "", assetName: "", category: "", categories: [], assetCount: "",
+      // A visit starts with every type ticked and the user drops the ones not needed; an inspection starts empty
+      activity: pickAsset ? [] : [...activityTypes],
       date: "", time: "", duration: "4 Hours", description: "", priority: "Medium",
+      ...initial,
+      ...(lockedPlant ? { plant: lockedPlant } : {}),
     },
   })
   const { control, watch, setValue } = form
 
   /** Who the activity is booked to. Nothing is chosen until the dialog commits. */
-  const [selected, setSelected] = useState<Elpremar | null>(null)
+  const [selected, setSelected] = useState<Elpremar | null>(initialElpremar ?? null)
   const [assigning, setAssigning] = useState(false)
 
   const plant = watch("plant")
+  // The register's assets at the chosen plant, for the Asset ID search
+  const assetRows = useAssetRows()
+  const plantAssets = useMemo(() => assetRows.filter((a) => a.plant === plant), [assetRows, plant])
+
+  /** A different plant has different assets, so an asset picked at the old one is cleared */
+  const clearAsset = () => {
+    setValue("assetTag", "")
+    setValue("assetName", "")
+    setValue("category", "")
+  }
   const activity = watch("activity")
 
   // The scheduled date drives the calendar highlight; the dialog writes it on assign
@@ -161,35 +179,8 @@ export function AddInspectionPage() {
     return isValid(d) ? d : undefined
   }, [scheduled])
 
-  const inspectionRows = useInspectionRows()
-  const taskRows = useTaskRows()
-
   // Everything already on someone's books, so the dialog can spot a clash
-  const bookings = useMemo(
-    () =>
-      ([
-        ...taskRows.map((m) => ({ elpremar: m.elpremar, date: m.scheduled, label: m.asset, plant: m.plant, enterprise: enterpriseInfo.name, slot: m.slot })),
-        ...inspectionRows.map((t) => ({ elpremar: t.elpremar, date: t.due, label: t.activity, plant: t.plant, enterprise: enterpriseInfo.name, slot: t.slot })),
-      ] as (Omit<Booking, "elpremar" | "date"> & { elpremar?: string; date?: string })[]).filter(
-        (b): b is Booking => !!b.elpremar && !!b.date
-      ),
-    [taskRows, inspectionRows]
-  )
-
-  // The chosen ELPREMAR's jobs today, in time order, for the Today's Tasks panel
-  const todaysTasks = useMemo(() => {
-    if (!selected) return []
-    const today = format(new Date(), "dd-MM-yyyy")
-    const jobs: { slot: number; asset: string; activity: string; status: WorkStatus }[] = [
-      ...inspectionRows
-        .filter((t) => t.elpremar === selected.name && t.due === today)
-        .map((t) => ({ slot: t.slot, asset: `${t.asset} · ${t.plant}`, activity: t.activity, status: t.status })),
-      ...taskRows
-        .filter((m) => m.elpremar === selected.name && m.scheduled === today)
-        .map((m) => ({ slot: m.slot, asset: `${m.asset} · ${m.plant}`, activity: `${m.type} Maintenance`, status: m.status })),
-    ]
-    return jobs.sort((a, b) => a.slot - b.slot)
-  }, [selected, inspectionRows, taskRows])
+  const bookings = useElpremarBookings()
 
   /** The dialog settles the person, the day and the interval, so the form takes all three */
   const saveAssignment = ({ elpremar, date, slot }: AssignResult) => {
@@ -202,13 +193,12 @@ export function AddInspectionPage() {
     })
   }
 
-  const assign = form.handleSubmit(() => {
+  const assign = form.handleSubmit((values) => {
     if (!selected) {
-      toast.error("Assign an ELPREMAR before adding the activity")
+      toast.error("Assign an ELPREMAR before submitting")
       return
     }
-    // TODO: POST /inspection-activities
-    toast.success(`Activity assigned to ${selected.name}`)
+    onSubmit(values, selected)
     form.reset()
     setSelected(null)
   })
@@ -216,12 +206,16 @@ export function AddInspectionPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Add Inspection Activity"
-        breadcrumbs={[{ label: "Inspections", to: "/inspection-activities" }, { label: "Add Inspection Activity" }]}
+        title={title}
+        breadcrumbs={breadcrumbs ?? [{ label: listLabel, to: listPath }, { label: title }]}
         actions={
           <>
             <Button variant="outline" size="sm" className={cn(controlSize, "bg-card")} asChild>
-              <Link to="/inspection-activities"><ArrowLeft className="size-3.5" /> Back to Inspections</Link>
+              {back ? (
+                <button type="button" onClick={back.onClick}><ArrowLeft className="size-3.5" /> {back.label}</button>
+              ) : (
+                <Link to={listPath}><ArrowLeft className="size-3.5" /> Back to {listLabel}</Link>
+              )}
             </Button>
           </>
         }
@@ -229,28 +223,53 @@ export function AddInspectionPage() {
 
       {/* The rail only exists once someone is assigned, so the form has the width until then */}
       <div className={cn("grid gap-5", selected && "xl:grid-cols-[1fr_24rem]")}>
-        <SectionCard title="Assign Activity to ELPREMAR" hoverable={false}>
-          <p className="-mt-1 mb-4 text-xs text-muted-foreground">Create and assign a new inspection activity for electrical asset assessment at the selected location.</p>
+        <SectionCard title={cardTitle} hoverable={false}>
+          <p className="-mt-1 mb-4 text-xs text-muted-foreground">{intro}</p>
           <form onSubmit={assign} className="grid gap-4 md:grid-cols-6" noValidate>
-            <SelectField control={control} name="plant" label="Plant" required options={plants} className="md:col-span-3" />
+            <SelectField control={control} name="plant" label="Plant" required options={plants} onValueChange={pickAsset ? clearAsset : undefined} disabled={!!lockedPlant} className="md:col-span-3" />
             <SelectField control={control} name="area" label="Location / Area" required options={areas} className="md:col-span-3" />
-            <SelectField control={control} name="category" label="Asset Category" options={assetCategories} className="md:col-span-2" />
-            <TextField
-              control={control}
-              name="assetCount"
-              label="No. of Assets"
-              inputMode="numeric"
-              maxLength={2}
-              placeholder="e.g. 12"
-              // Digits only, and never more than two of them, so the cap holds while typing
-              onValueChange={(v) => {
-                const digits = v.replace(/\D/g, "").slice(0, 2)
-                if (digits !== v) setValue("assetCount", digits, { shouldValidate: true })
-              }}
-              className="md:col-span-2"
-            />
-            <SelectField control={control} name="activity" label="Activity Type" options={activityTypes} className="md:col-span-2" />
-            <TextField control={control} name="date" label="Scheduled Date" required type="date" className="md:col-span-2" />
+            {pickAsset ? (
+              <>
+                <AssetIdField
+                  control={control}
+                  name="assetTag"
+                  label="Asset ID"
+                  required
+                  options={plantAssets}
+                  empty={`No asset at ${plant} matches.`}
+                  // The name and category come with the asset, so they are filled rather than typed
+                  onPick={(asset) => {
+                    setValue("assetName", asset.name, { shouldValidate: true })
+                    setValue("category", asset.category, { shouldValidate: true })
+                  }}
+                  className="md:col-span-2"
+                />
+                <TextField control={control} name="assetName" label="Asset Name" required readOnly placeholder="Filled from the Asset ID" inputClassName="bg-muted/60" className="md:col-span-2" />
+                <TextField control={control} name="category" label="Asset Category" required readOnly placeholder="Filled from the Asset ID" inputClassName="bg-muted/60" className="md:col-span-2" />
+                <MultiSelectField control={control} name="activity" label="Activity Type" options={activityTypes} placeholder="Select one or more" className="md:col-span-6" />
+              </>
+            ) : (
+              /* Schedule a Visit: the categories of asset to look at, and how many assets */
+              <>
+                <MultiSelectField control={control} name="categories" label="Asset Category" required options={assetCategories} placeholder="Select one or more" className="md:col-span-2" />
+                <TextField
+                  control={control}
+                  name="assetCount"
+                  label="No. of Assets"
+                  inputMode="numeric"
+                  maxLength={2}
+                  placeholder="e.g. 12"
+                  // Digits only, and never more than two of them, so the cap holds while typing
+                  onValueChange={(v) => {
+                    const digits = v.replace(/\D/g, "").slice(0, 2)
+                    if (digits !== v) setValue("assetCount", digits, { shouldValidate: true })
+                  }}
+                  className="md:col-span-2"
+                />
+                <MultiSelectField control={control} name="activity" label="Activity Type" options={activityTypes} placeholder="Select one or more" className="md:col-span-2" />
+              </>
+            )}
+            <TextField control={control} name="date" label="Scheduled Date" required type="date" min={today()} className="md:col-span-2" />
             <TextField control={control} name="time" label="Start Time" required type="time" className="md:col-span-2" />
             <SelectField control={control} name="duration" label="Estimated Duration" options={durations} className="md:col-span-2" />
 
@@ -284,8 +303,12 @@ export function AddInspectionPage() {
               <span className="ml-3 text-xs text-muted-foreground">PDF, JPG, PNG (Max 5 MB)</span>
             </div>
             <div className="flex justify-between gap-3 md:col-span-6">
-              <Button type="button" variant="outline" className="min-w-24" onClick={() => form.reset()}>Clear</Button>
-              <Button type="submit" className="min-w-36"><Send /> Add Activity</Button>
+              {onCancel ? (
+                <Button type="button" variant="outline" className="min-w-24" onClick={onCancel}>Cancel</Button>
+              ) : (
+                <Button type="button" variant="outline" className="min-w-24" onClick={() => form.reset()}>Clear</Button>
+              )}
+              <Button type="submit" className="min-w-36"><Send /> {submitLabel}</Button>
             </div>
           </form>
         </SectionCard>
@@ -293,52 +316,7 @@ export function AddInspectionPage() {
         {/* The rail only has something to say once an ELPREMAR is on the activity */}
         {selected ? (
           <div className="space-y-5">
-            <SectionCard title="Selected ELPREMAR Details" actions={<Button variant="link" size="xs">View Profile</Button>}>
-              <div className="flex items-start gap-3">
-                <div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-attention-soft text-attention"><HardHat className="size-7" /></div>
-                <div className="min-w-0 flex-1 text-xs">
-                  <div className="text-sm font-semibold">{selected.name}</div>
-                  <div>{selected.id}</div>
-                  <div className="text-muted-foreground">{selected.department} Department</div>
-                  <div className="text-muted-foreground">{selected.plant}</div>
-                </div>
-                <div className="space-y-1.5 text-xs">
-                  <Badge variant={selected.available ? "healthy" : "critical"}>{selected.available ? "Available" : "Not Available"}</Badge>
-                  <div className="flex items-center gap-1.5"><Phone className="size-3.5 text-primary" /> {selected.phone}</div>
-                  <div className="flex items-center gap-1.5"><Mail className="size-3.5 text-primary" /> <span className="truncate">{selected.email}</span></div>
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard title="ELPREMAR Details">
-              <AvailabilityCalendar key={bookedDay?.toISOString() ?? "none"} selected={bookedDay} />
-            </SectionCard>
-
-            <SectionCard title={`Today's Tasks (${format(new Date(), "d MMM yyyy")})`} viewAllTo="/inspection-activities" contentClassName="px-2">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/60">
-                    <TableHead className={th}>#</TableHead><TableHead className={th}>Time</TableHead><TableHead className={th}>Location / Asset</TableHead><TableHead className={th}>Activity</TableHead><TableHead className={th}>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {todaysTasks.map((t, i) => (
-                    <TableRow key={`${t.slot}-${t.asset}`}>
-                      <TableCell className={td}>{i + 1}</TableCell>
-                      <TableCell className={cn(td, "tabular-nums")}>{slotLabel(t.slot).slice(0, 5)}</TableCell>
-                      <TableCell className={td}>{t.asset}</TableCell>
-                      <TableCell className={td}>{t.activity}</TableCell>
-                      <TableCell className={td}><Badge variant={workStatus[t.status].badge} className="rounded px-1.5 py-0 text-[0.65rem]">{workStatus[t.status].label}</Badge></TableCell>
-                    </TableRow>
-                  ))}
-                  {todaysTasks.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="py-4 text-center text-xs text-muted-foreground">Nothing booked for today.</TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            </SectionCard>
+            <ElpremarRail selected={selected} bookedDay={bookedDay} />
           </div>
         ) : null}
       </div>
@@ -349,7 +327,7 @@ export function AddInspectionPage() {
           assigning
             ? {
                 id: "NEW",
-                title: activity || "New Inspection Activity",
+                title: activity?.length ? activity.join(", ") : untitled,
                 subtitle: `${watch("area") || "Location not set"} · ${plant}`,
                 plant,
                 // A new activity has nobody on it and no approval step of its own

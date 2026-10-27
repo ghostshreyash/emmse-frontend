@@ -26,9 +26,20 @@ const lists = {
   cooling: ["ONAN", "ONAF", "OFAF", "OFWF", "Dry type", "Other"],
   firePanel: ["Conventional", "Addressable"],
   htIncomer: ["VCB", "SF6", "ACB", "Other"],
+  ltIncomer: ["VCB", "ACB", "SF6", "MCCB"],
   networkKit: ["Router", "Firewall", "Media Converter", "Gateway", "Other"],
   comms: ["Ethernet", "Fiber", "Serial", "Modbus", "Other"],
   tapChanger: ["OLTC", "Off-circuit", "None"],
+  plcPresent: ["Yes", "No"],
+  instrumentType: ["CT", "PT", "Isolation"],
+  motorStarterTechnology: ["DOL", "STAR-DELTA"],
+  switchType: [
+    "Power over Ethernet (PoE) Switches",
+    "Smart Switch",
+    "Managed",
+    "Unmanaged",
+    "Other",
+  ],
 } as const satisfies Record<string, readonly string[]>
 
 type ListName = keyof typeof lists
@@ -58,10 +69,18 @@ export type ParamSpec = {
 /**
  * The sheet's unit cell as a list of units.
  *
- * "kW/kVA/A" and "A or kV" split cleanly. "V DC/AC" does not - the second
- * alternative drops the V - so cells that need a hand are written out.
+ * "kW/kVA/A" and "A or kV" split cleanly. Two kinds of cell do not, and are
+ * written out by hand:
+ *
+ * - "V DC/AC" - the second alternative drops the V.
+ * - "kV/V" - not alternatives at all. A transformer's HV / LV Voltage is one
+ *   ratio, "33/0.415", with the HV side in kV and the LV side in V, so the
+ *   unit is the whole of "kV/V" and there is nothing to choose between.
  */
-const unitSpellings: Record<string, readonly string[]> = { "V DC/AC": ["V DC", "V AC"] }
+const unitSpellings: Record<string, readonly string[]> = {
+  "V DC/AC": ["V DC", "V AC"],
+  "kV/V": ["kV/V"],
+}
 
 const splitUnits = (unit: string) =>
   unitSpellings[unit] ??
@@ -152,7 +171,7 @@ const byType: Record<string, string[]> = {
     "Model / Type|O|text",
     "Control Voltage|M|number|V DC/AC",
     "Rated Current|O|number|A",
-    "PLC/Controller Present|M|choice",
+    "PLC/Controller Present|M|choice|#plcPresent",
   ],
   "Distribution Board (DB)": [
     "Manufacturer|M|choice|#manufacturer",
@@ -196,7 +215,7 @@ const byType: Record<string, string[]> = {
   "Instrument Transformer (CT/PT)": [
     "Manufacturer|M|choice|#manufacturer",
     "Model / Type|O|text",
-    "Instrument Type|M|choice",
+    "Instrument Type|M|choice|#instrumentType",
     "Primary Rating|M|text|A or kV",
     "Secondary Rating|M|text|A or V",
     "Accuracy Class|O|choice",
@@ -220,8 +239,8 @@ const byType: Record<string, string[]> = {
     "Model / Type|O|text",
     "Rated Voltage|M|number|V",
     "Rated Current|M|number|A",
-    "Incomer Type|M|choice",
-    "Busbar Material / Rating|M|choice",
+    "Incomer Type|O|choice|#ltIncomer",
+    "Busbar Material|M|choice|#busbarMaterial",
   ],
   "MCC (Motor Control Center)": [
     "Manufacturer|M|choice|#manufacturer",
@@ -230,7 +249,7 @@ const byType: Record<string, string[]> = {
     "Rated Current|M|number|A",
     "Busbar Rating|O|number|A",
     "Number of Motor Feeders|O|number|Nos.",
-    "Motor Starter Technology|M|choice",
+    "Motor Starter Technology|M|choice|#motorStarterTechnology",
   ],
   MCCB: [
     "Manufacturer|M|choice|#manufacturer",
@@ -244,7 +263,7 @@ const byType: Record<string, string[]> = {
   "Network Switch": [
     "Manufacturer|M|choice|#manufacturer",
     "Model / Type|O|text",
-    "Switch Type|O|choice",
+    "Switch Type|O|choice|#switchType",
     "Power Supply|M|text|V DC/AC",
   ],
   Other: [
@@ -366,12 +385,18 @@ export const parameterisedTypes = Object.keys(byType)
  * What to ask for this asset type: its own specification, then the criticality
  * every type carries.
  *
- * A type the sheet has no row for is asked only for the common parameters.
- * Nothing is borrowed from another type: a parameter the sheet does not give
- * for an asset is not asked of that asset - see `typesWithoutParameters`.
+ * A type the sheet has no row for - the two master categories it misses, and
+ * any category named by hand behind Other - falls back to the sheet's own Other
+ * row rather than to nothing at all. Naming an asset properly used to ask for
+ * less than leaving it as "Other" did, which is the wrong way round. Every
+ * parameter on that row is optional, so the fallback offers more to fill in
+ * without making anything new mandatory.
+ *
+ * Nothing is borrowed from another *named* type: a parameter the sheet gives a
+ * transformer is still not asked of a busbar - see `typesWithoutParameters`.
  */
 export function parametersFor(category: string): ParamSpec[] {
-  return [...(byType[category] ?? []), ...common].map(parse)
+  return [...(byType[category] ?? byType.Other), ...common].map(parse)
 }
 
 /** Whether the sheet has a row for this asset type at all */
@@ -397,7 +422,7 @@ export function missingParameters(category: string, answers: Record<string, stri
   return requiredParameters(category).filter((p) => !answers[p.key]?.trim())
 }
 
-/** Master categories the sheet has no row for; they carry the common set only */
+/** Master categories the sheet has no row for; they fall back to its Other row */
 export const typesWithoutParameters = assetCategories.filter((c) => !(c in byType))
 
 /**
@@ -406,12 +431,6 @@ export const typesWithoutParameters = assetCategories.filter((c) => !(c in byTyp
  * or given invented options.
  */
 export const missingOptionLists = [
-  "PLC/Controller Present (Control Panel)",
-  "Instrument Type (Instrument Transformer CT/PT)",
   "Accuracy Class (Instrument Transformer CT/PT)",
-  "Incomer Type (LT Panel)",
-  "Busbar Material / Rating (LT Panel)",
-  "Motor Starter Technology (MCC)",
-  "Switch Type (Network Switch)",
   "Operating Mechanism (VCB)",
 ] as const

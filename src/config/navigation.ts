@@ -1,12 +1,15 @@
 import {
   BookOpen,
+  CalendarClock,
   ChartColumn,
   CircleHelp,
+  Factory,
   ClipboardCheck,
   ClipboardList,
   Flame,
   Gauge,
   HardDrive,
+  LifeBuoy,
   House,
   Settings,
   ShieldAlert,
@@ -25,6 +28,8 @@ export type NavItem = {
    * its sidebar entry highlighted even though it sits on its own path.
    */
   covers?: string[]
+  /** Enterprise-wide sections a plant-level (EMMSE-0) user does not get */
+  enterpriseOnly?: boolean
 }
 
 /**
@@ -34,12 +39,15 @@ export type NavItem = {
  */
 export const sections = {
   dashboard: { title: "Dashboard", path: "/", icon: House },
+  plantsList: { title: "Plants", path: "/plants-list", icon: Factory, covers: ["/plants-list/"], enterpriseOnly: true },
   assets: { title: "Asset Management", path: "/assets", icon: HardDrive },
   tasks: { title: "Maintenance Tasks", path: "/tasks", icon: Wrench },
   /** The original Tasks route, kept as its placeholder page; Tasks now lives at /tasks */
-  maintenance: { title: "Maintenance Activities", path: "/maintenance-activities", icon: Wrench },
-  reports: { title: "Reports & Analytics", path: "/reports", icon: ChartColumn },
+  maintenance: { title: "Maintenance Tasks", path: "/maintenance-activities", icon: Wrench },
+  reports: { title: "Reports & Analytics", path: "/reports", icon: ChartColumn, covers: ["/reports/"] },
   inspections: { title: "Inspections", path: "/inspection-activities", icon: ClipboardCheck },
+  /** Visits booked to an ELPREMAR; Add Visit uses the Add Inspection form */
+  visits: { title: "Schedule a Visit", path: "/visits", icon: CalendarClock, covers: ["/visits/"] },
   /** The original Inspections route, kept as its placeholder page */
   inspectionsPlaceholder: { title: "Inspections", path: "/inspections", icon: ClipboardCheck },
   testing: { title: "Testing & Measurements", path: "/testing-measurements", icon: SquareCheckBig },
@@ -47,19 +55,29 @@ export const sections = {
   safety: { title: "Safety & Compliance", path: "/safety-compliance", icon: ShieldAlert },
   fire: { title: "Fire Prevention System", path: "/fire-prevention", icon: Flame },
   users: { title: "Users & Access", path: "/users", icon: UsersRound },
+  /**
+   * Support Tickets: how this enterprise raises anything with OCC. The client
+   * settled that every enterprise-to-OCC message is a ticket, so this is the
+   * one channel - `support` below stays the placeholder Help section it was.
+   */
+  tickets: { title: "Support Tickets", path: "/support-tickets", icon: LifeBuoy, covers: ["/support-tickets/"] },
   work: { title: "Work Management", path: "/work-management", icon: ClipboardList },
   knowledge: { title: "Knowledge Library", path: "/knowledge-library", icon: BookOpen },
   settings: { title: "Settings", path: "/settings", icon: Settings },
-  support: { title: "Support / Help", path: "/support", icon: CircleHelp },
+  support: { title: "Contact & Help", path: "/support", icon: CircleHelp },
 } satisfies Record<string, NavItem>
 
 /** The sidebar menu. Sections are hidden from it for now, not removed from the app. */
 export const navigation: NavItem[] = [
   sections.dashboard,
+  sections.plantsList,
   sections.assets,
   sections.tasks,
-  // sections.reports,
   sections.inspections,
+  sections.visits,
+  sections.reports,
+  sections.tickets,
+  sections.support,
   // sections.testing,
   // sections.reliability,
   // sections.safety,
@@ -68,5 +86,4 @@ export const navigation: NavItem[] = [
   // sections.work,
   // sections.knowledge,
   // sections.settings,
-  // sections.support,
 ]

@@ -6,22 +6,25 @@
  */
 import { plants } from "@/data/dashboard"
 import { inspections, type InspectionRow } from "@/data/inspections"
+import type { MaintenanceType } from "@/data/master-data"
 import { crew, day, daySlots, seeded } from "@/data/operations"
 import type { WorkStatus } from "@/lib/status"
 
-/** The maintenance programmes a task can belong to */
-export const taskTypes = ["Preventive", "Corrective", "Condition-Based", "Fire Preventive"] as const
+/**
+ * The maintenance programmes a task can belong to, in the parameter sheet's own
+ * wording — see `maintenanceTypes`, which is the one place the list is kept and
+ * the one place to change it.
+ */
+export const taskTypes = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const satisfies readonly MaintenanceType[]
 export type TaskType = (typeof taskTypes)[number]
 
-/** What the mock book is drawn from: planned programmes only, no corrective work */
-const plannedTypes: TaskType[] = ["Preventive", "Condition-Based", "Fire Preventive"]
-
-/** The mock book is raised already signed off, so none of it waits in "open" */
+/** Where tasks on the mock book stand; a few are still Open (raised, not started) */
 const workStates: WorkStatus[] = ["assigned", "in_progress", "completed"]
+const bookStates: WorkStatus[] = ["open", ...workStates]
 
 /**
- * Status filter options, in the order a task moves through them. "open" reads as
- * Pending For Approval: where a task added from the Add Task screen starts.
+ * Status filter options, in the order a task moves through them. "Open" is where
+ * a task added from the Add Maintenance Task screen starts.
  */
 export const taskStatuses: WorkStatus[] = ["open", ...workStates]
 
@@ -74,11 +77,11 @@ function generateTasks(count: number): TaskRow[] {
       asset: source.asset,
       assetTag: source.assetTag,
       plant,
-      type: pick(plannedTypes),
+      type: pick(taskTypes),
       elpremar,
       scheduled,
       slot,
-      status: pick(workStates),
+      status: pick(bookStates),
       inspectionId: source.id,
     })
   }

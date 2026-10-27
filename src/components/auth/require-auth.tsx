@@ -21,6 +21,13 @@ export function RequireAuth() {
   return <Outlet />
 }
 
+/** Enterprise-wide screens; a plant-level (EMMSE-0) user is sent back to their dashboard. */
+export function EnterpriseOnly() {
+  const { user } = useAuth()
+  if (user?.choosesPlant) return <Navigate to="/" replace />
+  return <Outlet />
+}
+
 /** Keeps signed-in users out of the auth screens. */
 export function PublicOnly({ children }: { children: React.ReactNode }) {
   const { session } = useAuth()

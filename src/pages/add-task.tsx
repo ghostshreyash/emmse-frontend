@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import { differenceInMonths, format, isValid, parse } from "date-fns"
 import { toast } from "sonner"
-import { Clock, Info, Send } from "lucide-react"
+import { Clock, Info, Send, UserRound } from "lucide-react"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
@@ -12,30 +12,31 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { AssignElpremarDialog, type AssignResult } from "@/components/common/assign-elpremar-dialog"
+import { ElpremarRail } from "@/components/common/elpremar-booking"
 import { PageHeader } from "@/components/common/page-header"
 import { AssetIllustration } from "@/components/common/asset-illustration"
-import { ClearButton, HealthGauge, InspectedAssetPicker, type InspectedAsset } from "@/components/tasks/add-task-parts"
-import { departments, type AssetRecord } from "@/data/assets"
-import { findAsset, useAssetRows } from "@/data/asset-store"
+import { HealthGauge, InspectedAssetPicker, type InspectedAsset } from "@/components/tasks/add-task-parts"
+import type { AssetRecord } from "@/data/assets"
+import { findAsset } from "@/data/asset-store"
 import { plants } from "@/data/dashboard"
+import { useElpremarBookings } from "@/data/elpremar-bookings"
 import { useInspectionDetails, useInspectionRows } from "@/data/inspection-store"
-import { assetCategories } from "@/data/master-data"
-import { crew } from "@/data/operations"
+import { elpremars, slotLabel } from "@/data/operations"
 import { addTask, useTaskRows } from "@/data/task-store"
 import type { TaskType } from "@/data/tasks"
 import { useAuth } from "@/lib/auth/context"
-import { healthStatus } from "@/lib/status"
+import { today } from "@/lib/validation"
 
 /* ---------- Options ---------- */
 
-const maintenanceKinds = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const
+/**
+ * The maintenance types this form offers. They are the parameter sheet's own
+ * names, the same ones the Tasks list's Type column shows, so a ticked box files
+ * as it reads. Condition-Based Maintenance is left off this form on purpose.
+ */
+const maintenanceKinds = ["Preventive Maintenance", "Fire Preventive Maintenance"] as const satisfies readonly TaskType[]
 type MaintenanceKind = (typeof maintenanceKinds)[number]
-
-/** How each box on the form files into the Tasks list's Type column */
-const kindToType: Record<MaintenanceKind, TaskType> = {
-  "Preventive Maintenance": "Preventive",
-  "Fire Preventive Maintenance": "Fire Preventive",
-}
 
 const instaFluids = [
   { name: "INSTA 50", hint: "Light contamination" },
@@ -49,9 +50,9 @@ const cleaningMethods = ["Spray & wipe", "Foam application", "Ultrasonic cleanin
 const compartments = ["Busbar chamber", "Terminations", "Insulators", "Cable box", "Breaker compartment", "Enclosure"]
 const contaminationLevels = ["Light", "Medium", "Heavy"]
 const conditions = ["Good", "Fair", "Poor"]
-const editableHealth = ["healthy", "attention", "critical"] as const
+type EditableHealth = "healthy" | "attention" | "critical"
 /** The mockup words the bands Healthy / Alarming / Critical */
-const healthLabel: Record<(typeof editableHealth)[number], string> = { healthy: "Healthy", attention: "Alarming", critical: "Critical" }
+const healthLabel: Record<EditableHealth, string> = { healthy: "Healthy", attention: "Alarming", critical: "Critical" }
 
 /** Every step the form can show; the tab bar only offers those listed in `steps` */
 type StepKey = "details" | "cleaning" | "post" | "fire" | "pd" | "review"
@@ -86,7 +87,7 @@ type TaskForm = {
   manufacturer: string
   model: string
   serial: string
-  health: (typeof editableHealth)[number] | ""
+  health: EditableHealth | ""
   nextDue: string
   plannedDate: string
   startTime: string
@@ -233,14 +234,16 @@ function Panel({ title, className, children, action }: { title: string; classNam
 /* ---------- Page ---------- */
 
 /**
- * Add Task: record a maintenance activity end to end — pick the asset, log the
+ * Add Task: record a maintenance task end to end — pick the asset, log the
  * cleaning with INSTA fluids, the post-cleaning readings and any fire prevention
  * or PD mitigation work, then submit it for approval. Built to the "Maintenance
  * Activities" mockup, named Tasks to match this app.
  */
 export function AddTaskPage() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, session } = useAuth()
+  // A plant-level user (EMMSE-0) works at the plant picked after sign-in, and sees only its assets
+  const lockedPlant = user?.choosesPlant ? plants.find((p) => p.id === session?.plantId)?.name : undefined
   const taskCount = useTaskRows().length
 
   // A draft saved before a field existed still opens, with that field blank
@@ -248,10 +251,30 @@ export function AddTaskPage() {
   // ?asset=TAG (from Asset Management's Log New Activity) opens with that asset loaded
   const [form, setForm] = useState<TaskForm>(() => {
     const base = { ...blankForm(`WO-${format(new Date(), "yyyy")}-${1100 + taskCount}`), ...readDraft() }
-    const linked = findAsset(params.get("asset") ?? "")
+    const found = findAsset(params.get("asset") ?? "")
+    const linked = found && (!lockedPlant || found.plant === lockedPlant) ? found : undefined
     return linked ? { ...base, ...assetFields(linked) } : base
   })
   const [step, setStep] = useState<StepKey>("details")
+  /** The ELPREMAR booking dialog, open while assigning */
+  const [assigning, setAssigning] = useState(false)
+  const bookings = useElpremarBookings()
+  // The booked ELPREMAR's register entry, for the details rail
+  const assigned = elpremars.find((e) => e.name === form.performedBy)
+  const railShown = step === "details" && !!assigned
+  const bookedDay = form.plannedDate && isValid(parse(form.plannedDate, "yyyy-MM-dd", new Date())) ? parse(form.plannedDate, "yyyy-MM-dd", new Date()) : undefined
+
+  /** The dialog settles the person, the day and the interval, so the form takes all three */
+  const saveAssignment = ({ elpremar, date, slot }: AssignResult) => {
+    setForm((f) => ({
+      ...f,
+      performedBy: elpremar.name,
+      plannedDate: format(date, "yyyy-MM-dd"),
+      startTime: `${String(slot).padStart(2, "0")}:00`,
+    }))
+    setAssigning(false)
+    toast.success(`${elpremar.name} assigned`, { description: `${format(date, "d MMM yyyy")}, ${slotLabel(slot)}` })
+  }
 
   const asset: AssetRecord | undefined = form.loadedTag ? findAsset(form.loadedTag) : undefined
 
@@ -267,7 +290,7 @@ export function AddTaskPage() {
     const classified = { Healthy: "healthy", Attention: "attention", Critical: "critical" } as const
     return inspectionRows
       .map((r) => ({ r, on: parse(r.due, "dd-MM-yyyy", new Date()) }))
-      .filter(({ r, on }) => r.status === "completed" && on <= today)
+      .filter(({ r, on }) => r.status === "completed" && on <= today && (!lockedPlant || r.plant === lockedPlant))
       .sort((a, b) => b.on.getTime() - a.on.getTime())
       .map(({ r }) => {
         const detail = inspectionDetails[r.id]
@@ -285,30 +308,14 @@ export function AddTaskPage() {
           health: result ? classified[result.classification] : undefined,
         }
       })
-  }, [inspectionRows, inspectionDetails])
+  }, [inspectionRows, inspectionDetails, lockedPlant])
 
-  /** Fill the asset from its latest inspection, and link the task to that inspection */
+  /**
+   * Picking an asset in Asset Details only chooses it - Load Asset then fills the
+   * summary and the task's asset fields, as typing an ID and loading always did.
+   */
   function pickInspected(picked?: InspectedAsset) {
-    if (!picked) {
-      set("inspectionId", "")
-      return
-    }
-    setForm((f) => ({
-      ...f,
-      inspectionId: picked.inspectionId,
-      tagId: picked.tagId,
-      // Only an asset in the register has a summary to show
-      loadedTag: findAsset(picked.tagId) ? picked.tagId : "",
-      plant: picked.plant,
-      department: picked.department in departments ? picked.department : "",
-      subDepartment: "",
-      category: picked.category,
-      assetName: picked.asset,
-      manufacturer: "",
-      model: "",
-      serial: "",
-      health: picked.health ?? f.health,
-    }))
+    setForm((f) => ({ ...f, tagId: picked?.tagId ?? "", inspectionId: picked?.inspectionId ?? "" }))
   }
 
   const set = <K extends keyof TaskForm>(key: K, value: TaskForm[K]) => setForm((f) => ({ ...f, [key]: value }))
@@ -316,38 +323,30 @@ export function AddTaskPage() {
     setForm((f) => ({ ...f, [key]: { ...f[key], ...value } }))
   const toggle = (list: string[], item: string, on: boolean) => (on ? [...new Set([...list, item])] : list.filter((x) => x !== item))
 
-  // Asset IDs that fit the filters above, offered as suggestions while typing
-  const register = useAssetRows()
-  const suggestions = useMemo(
-    () =>
-      register.filter(
-        (a) =>
-          a.plant === form.plant &&
-          (!form.department || a.department === form.department) &&
-          (!form.subDepartment || a.subDepartment === form.subDepartment) &&
-          (!form.category || a.category === form.category)
-      ),
-    [register, form.plant, form.department, form.subDepartment, form.category]
-  )
-
   function loadAsset(tagId = form.tagId) {
     const found = findAsset(tagId)
     if (!found) {
-      toast.error(tagId.trim() ? `No asset with ID ${tagId.trim()}` : "Enter an Asset ID / Tag ID to load")
+      toast.error(tagId.trim() ? `No asset with ID ${tagId.trim()}` : "Pick an asset in Asset Details, then load it")
       return
     }
-    setForm((f) => ({ ...f, ...assetFields(found) }))
+    if (lockedPlant && found.plant !== lockedPlant) {
+      toast.error(`${found.tagId} is at ${found.plant}`, { description: `Only ${lockedPlant} assets can be used here.` })
+      return
+    }
+    // The inspection it was picked through stays linked to the task
+    setForm((f) => ({ ...f, ...assetFields(found), inspectionId: f.inspectionId }))
     toast.success(`${found.name} loaded`, { description: `${found.tagId} · ${found.plant}` })
   }
 
   /** What still stands between the form and a submission, in the order it appears */
   const missing = [
-    !form.assetName.trim() && "Asset name (load an asset or type it in)",
+    !form.assetName.trim() && "Asset (pick one in Asset Details and press Load Asset)",
     !form.plannedDate && "Planned date",
+    // Work is planned from today on; yyyy-MM-dd compares correctly as text
+    !!form.plannedDate && form.plannedDate < today() && "Planned date (today or later)",
     !form.startTime && "Start time",
-    !form.performedBy && "Assign To (ELPREMAR)",
+    !form.performedBy && "ELPREMAR (Assign ELPREMAR)",
     !form.kinds.length && "Maintenance type",
-    !form.fluids.length && "INSTA fluid used",
   ].filter(Boolean) as string[]
 
   /* ---------- Actions ---------- */
@@ -374,7 +373,7 @@ export function AddTaskPage() {
       {
         asset: form.assetName.trim(),
         plant: form.plant,
-        type: kindToType[form.kinds[0]],
+        type: form.kinds[0],
         elpremar: form.performedBy,
         scheduled,
         // Booked intervals run 09:00-18:00, so an out-of-hours start files at the nearest one
@@ -387,7 +386,7 @@ export function AddTaskPage() {
       {
         description:
           form.notes ||
-          `${form.inspectionId ? `Follow-up to inspection ${form.inspectionId}. ` : ""}${form.kinds.join(", ")} on ${form.assetName.trim()} using ${form.fluids.join(", ")}.`,
+          `${form.inspectionId ? `Follow-up to inspection ${form.inspectionId}. ` : ""}${form.kinds.join(", ")} on ${form.assetName.trim()}${form.fluids.length ? ` using ${form.fluids.join(", ")}` : ""}.`,
         createdBy: user?.name ?? "Enterprise Admin",
         area: [form.department, form.subDepartment].filter(Boolean).join(" · ") || "Not recorded",
         assetTag: form.tagId.trim() || "Not tagged",
@@ -415,7 +414,7 @@ export function AddTaskPage() {
     } catch {
       // Nothing to clear in a browser without storage
     }
-    toast.success(`Maintenance task ${id} submitted for approval`, { description: `${form.assetName.trim()} · ${form.plant}` })
+    toast.success(`Maintenance task ${id} created`, { description: `${form.assetName.trim()} · ${form.plant}` })
     navigate(`/tasks/${id}`)
   }
 
@@ -446,6 +445,9 @@ export function AddTaskPage() {
         }
       />
 
+      {/* The whole form on the left; once an ELPREMAR is booked, their details down the right, as on Add Inspection */}
+      <div className={cn("grid items-start gap-3", railShown && "xl:grid-cols-[minmax(0,1fr)_24rem]")}>
+      <div className="min-w-0 space-y-3">
       {/* ---------- 1. Select Asset ---------- */}
       <section className="rounded-lg bg-card p-3 shadow-xs ring-1 ring-foreground/10">
         <h2 className="mb-2.5 flex items-center gap-2 text-base font-semibold text-brand-navy dark:text-foreground">
@@ -453,74 +455,23 @@ export function AddTaskPage() {
           Select Asset
         </h2>
 
-        <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-5">
-          <Field label="Plant">
-            <Choice value={form.plant} onChange={(v) => setForm((f) => ({ ...f, plant: v, tagId: "", loadedTag: "", inspectionId: "" }))} options={plants.map((p) => p.name)} />
+        <div className="grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+          <Field label="Asset Details" required>
+            <InspectedAssetPicker options={inspectedAssets} value={form.inspectionId} onChange={pickInspected} />
           </Field>
-          <Field label="Department">
-            {/* A new department has its own sub-departments, so the old pick is cleared */}
-            <Choice value={form.department} onChange={(v) => setForm((f) => ({ ...f, department: v, subDepartment: "" }))} options={Object.keys(departments)} />
-          </Field>
-          <Field label="Sub-department">
-            <Choice
-              value={form.subDepartment}
-              onChange={(v) => set("subDepartment", v)}
-              options={departments[form.department] ?? []}
-              placeholder={form.department ? "Select" : "Pick a department first"}
-            />
-          </Field>
-          <Field label="Asset Category">
-            <Choice value={form.category} onChange={(v) => set("category", v)} options={assetCategories} />
-          </Field>
-          <Field label="Asset ID / Tag ID">
-            {/* Enter here or the Load Asset button loads it */}
-            <div className="relative">
-              <Input
-                value={form.tagId}
-                onChange={(e) => set("tagId", e.target.value.toUpperCase())}
-                onKeyDown={(e) => e.key === "Enter" && loadAsset()}
-                list="asset-tags"
-                placeholder="Enter or pick an ID"
-                className={cn(control, "pr-7 tabular-nums")}
-              />
-              {form.tagId ? <ClearButton label="Clear Asset ID" onClick={() => set("tagId", "")} /> : null}
-              <datalist id="asset-tags">
-                {suggestions.map((a) => <option key={a.tagId} value={a.tagId}>{a.name}</option>)}
-              </datalist>
-            </div>
-          </Field>
+          <Button className="h-8" onClick={() => loadAsset()} disabled={!form.tagId}>Load Asset</Button>
         </div>
-
-        <div className="mt-2.5 grid items-end gap-x-3 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-7">
-          <Field label="Asset Name">
-            <Input value={form.assetName} onChange={(e) => set("assetName", e.target.value)} placeholder="—" className={control} />
-          </Field>
-          <Field label="Manufacturer">
-            <Input value={form.manufacturer} onChange={(e) => set("manufacturer", e.target.value)} placeholder="—" className={control} />
-          </Field>
-          <Field label="Model">
-            <Input value={form.model} onChange={(e) => set("model", e.target.value)} placeholder="—" className={control} />
-          </Field>
-          <Field label="Serial Number">
-            <Input value={form.serial} onChange={(e) => set("serial", e.target.value)} placeholder="—" className={cn(control, "tabular-nums")} />
-          </Field>
-          <Field label="Health Status">
-            <Select value={form.health || undefined} onValueChange={(v) => set("health", v as TaskForm["health"])}>
-              <SelectTrigger size="sm" className={cn(control, form.health && healthStatus[form.health].tile)}>
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                {editableHealth.map((h) => (
-                  <SelectItem key={h} value={h} className="text-xs">{healthLabel[h]}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Next Due Date">
-            <Input type="date" value={form.nextDue} onChange={(e) => set("nextDue", e.target.value)} className={control} />
-          </Field>
-          <Button className="h-9" onClick={() => loadAsset()}>Load Asset</Button>
-        </div>
+        <p className="mt-1.5 text-[0.7rem] text-muted-foreground">
+          {form.inspectionId ? (
+                <span>
+                  Linked inspection <span className="font-semibold text-foreground tabular-nums">{form.inspectionId}</span>
+                  {" "}· {inspectedAssets.find((a) => a.inspectionId === form.inspectionId)?.activity} on{" "}
+                  {inspectedAssets.find((a) => a.inspectionId === form.inspectionId)?.inspectedOn}
+                </span>
+              ) : (
+                "Recently inspected assets, each with the inspection it came from."
+              )}
+        </p>
       </section>
 
       <div className="space-y-3">
@@ -534,6 +485,7 @@ export function AddTaskPage() {
                 <dl className="flex min-w-0 flex-1 flex-wrap gap-2">
                   {[
                     ["Asset Tag ID", asset.tagId],
+                    ["Plant", asset.plant],
                     ["Category", asset.category],
                     ["Department", asset.department],
                     ["Sub-department", asset.subDepartment],
@@ -612,29 +564,9 @@ export function AddTaskPage() {
               {step === "details" ? (
                 <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_15rem]">
                   <Panel title="Maintenance Task Information">
-                    <div className="mb-3 grid gap-3 sm:grid-cols-2">
-                      <Field label="Asset Details">
-                        <InspectedAssetPicker options={inspectedAssets} value={form.inspectionId} onChange={pickInspected} />
-                      </Field>
-                      <Field label="Linked Inspection">
-                        <p className="flex h-8 items-center text-xs">
-                          {form.inspectionId ? (
-                            <span>
-                              <span className="font-semibold tabular-nums">{form.inspectionId}</span>
-                              <span className="text-muted-foreground">
-                                {" "}· {inspectedAssets.find((a) => a.inspectionId === form.inspectionId)?.activity} on{" "}
-                                {inspectedAssets.find((a) => a.inspectionId === form.inspectionId)?.inspectedOn}
-                              </span>
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">None — pick an asset to link its latest inspection</span>
-                          )}
-                        </p>
-                      </Field>
-                    </div>
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <Field label="Planned Date" required>
-                        <Input type="date" value={form.plannedDate} onChange={(e) => set("plannedDate", e.target.value)} className={control} />
+                        <Input type="date" min={today()} value={form.plannedDate} onChange={(e) => set("plannedDate", e.target.value)} className={control} />
                       </Field>
                       <Field label="Start Time (Real Time)" required>
                         <TimeInput value={form.startTime} onChange={(v) => set("startTime", v)} />
@@ -642,8 +574,22 @@ export function AddTaskPage() {
                       <Field label="End Time (Real Time)">
                         <TimeInput value={form.endTime} onChange={(v) => set("endTime", v)} />
                       </Field>
-                      <Field label="Assign To" required>
-                        <Choice value={form.performedBy} onChange={(v) => set("performedBy", v)} options={crew} placeholder="Select ELPREMAR" />
+                      <Field label="ELPREMAR" required>
+                        {/* Booked through the same dialog as Add Inspection; it settles the date and start time too */}
+                        <Button
+                          type="button"
+                          variant={assigned ? "outline" : "default"}
+                          className="h-8 w-full justify-start overflow-hidden text-xs"
+                          onClick={() => setAssigning(true)}
+                        >
+                          <UserRound /> <span className="truncate">{assigned ? "Change ELPREMAR" : "Assign ELPREMAR"}</span>
+                        </Button>
+                        {assigned ? (
+                          <p className="truncate text-[0.7rem]" title={`${assigned.name} · ${assigned.id}`}>
+                            <span className="font-semibold text-primary">{assigned.name}</span>
+                            <span className="text-muted-foreground"> · {assigned.id}</span>
+                          </p>
+                        ) : null}
                       </Field>
                     </div>
                     <div className="mt-3 grid gap-3 sm:grid-cols-3">
@@ -811,14 +757,43 @@ export function AddTaskPage() {
               <div className="mt-1 text-right text-[0.65rem] text-muted-foreground tabular-nums">{form.notes.length}/500</div>
             </Panel>
           ) : null}
-        </div>
 
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" size="sm" className="bg-card" onClick={back}>Back</Button>
-          {/* <Button variant="outline" size="sm" className="bg-card" onClick={saveDraft}><Save /> Save as Draft</Button> */}
-          <Button size="sm" onClick={submit}><Send /> Submit</Button>
         </div>
       </div>
+      </div>
+
+      {/* ---------- Who is booked, once someone is ---------- */}
+      {railShown && assigned ? (
+        <div className="space-y-3">
+          <ElpremarRail selected={assigned} bookedDay={bookedDay} />
+        </div>
+      ) : null}
+      </div>
+
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" size="sm" className="bg-card" onClick={back}>Back</Button>
+        {/* <Button variant="outline" size="sm" className="bg-card" onClick={saveDraft}><Save /> Save as Draft</Button> */}
+        <Button size="sm" onClick={submit}><Send /> Submit</Button>
+      </div>
+
+      <AssignElpremarDialog
+        key={assigning ? "assigning" : "idle"}
+        target={
+          assigning
+            ? {
+                id: "NEW",
+                title: form.assetName || "New Maintenance Task",
+                subtitle: `${form.kinds.join(", ") || "Maintenance"} · ${asset?.plant ?? form.plant}`,
+                plant: asset?.plant ?? form.plant,
+                // Opens straight on the ELPREMAR search, assigning or changing alike, as on Add Inspection
+                approvable: false,
+              }
+            : null
+        }
+        bookings={bookings}
+        onOpenChange={(open) => !open && setAssigning(false)}
+        onAssign={saveAssignment}
+      />
     </div>
   )
 }

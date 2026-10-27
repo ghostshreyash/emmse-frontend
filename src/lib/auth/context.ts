@@ -8,6 +8,8 @@ export type AuthContextValue = {
   /** Completes login once an OTP has been verified. */
   signIn: (user: AuthUser, remember: boolean) => void
   signOut: () => void
+  /** Records the plant picked on the Plants screen and keeps the stored session in step. */
+  choosePlant: (plantId: string) => void
   /** Applies profile edits to the signed-in user and keeps the stored session in step. */
   updateUser: (changes: Partial<Pick<AuthUser, "name" | "email" | "mobile">>) => void
   /** OTP challenge awaiting verification, handed between the auth screens. */

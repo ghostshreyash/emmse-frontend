@@ -1,4 +1,4 @@
-import { Factory, Layers } from "lucide-react"
+import { Factory, Layers, Lock } from "lucide-react"
 
 import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { plants, type DashboardScope } from "@/data/dashboard"
@@ -6,8 +6,19 @@ import { plants, type DashboardScope } from "@/data/dashboard"
 const item = "py-2 pr-8 pl-2"
 const iconTile = "flex size-7 shrink-0 items-center justify-center rounded-md"
 
-/** Scopes the whole dashboard to one plant, or to every plant in the enterprise ("All") */
-export function PlantSelect({ value, onChange }: { value: DashboardScope; onChange: (value: DashboardScope) => void }) {
+/**
+ * Scopes the whole dashboard to one plant, or to every plant in the enterprise ("All").
+ * `locked` holds it to the plant shown: every other option stays listed but disabled.
+ */
+export function PlantSelect({
+  value,
+  onChange,
+  locked = false,
+}: {
+  value: DashboardScope
+  onChange: (value: DashboardScope) => void
+  locked?: boolean
+}) {
   const label = value === "all" ? "All Plants" : plants.find((p) => p.id === value)?.name
 
   return (
@@ -20,7 +31,9 @@ export function PlantSelect({ value, onChange }: { value: DashboardScope; onChan
           <Factory className="size-4" />
         </span>
         <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
-          <span className="text-[0.6rem] font-semibold tracking-wider text-muted-foreground uppercase">Plant</span>
+          <span className="flex items-center gap-1 text-[0.6rem] font-semibold tracking-wider text-muted-foreground uppercase">
+            Plant {locked ? <Lock className="size-2.5" aria-label="Locked to this plant" /> : null}
+          </span>
           {/* Children override the item text, so the trigger shows just the name */}
           <SelectValue>
             <span className="truncate text-sm font-semibold text-brand-navy dark:text-foreground">{label}</span>
@@ -28,7 +41,7 @@ export function PlantSelect({ value, onChange }: { value: DashboardScope; onChan
         </span>
       </SelectTrigger>
       <SelectContent position="popper" align="end" className="min-w-64 p-1">
-        <SelectItem value="all" className={item}>
+        <SelectItem value="all" className={item} disabled={locked}>
           <span className={`${iconTile} bg-highlight/12 text-highlight`}>
             <Layers className="size-3.5" />
           </span>
@@ -39,7 +52,7 @@ export function PlantSelect({ value, onChange }: { value: DashboardScope; onChan
         </SelectItem>
         <SelectSeparator />
         {plants.map((p) => (
-          <SelectItem key={p.id} value={p.id} className={item}>
+          <SelectItem key={p.id} value={p.id} className={item} disabled={locked && p.id !== value}>
             <span className={`${iconTile} bg-primary/10 text-[0.6rem] font-bold text-primary`}>{p.id}</span>
             <span className="flex flex-col leading-tight">
               <span className="text-xs font-semibold">{p.name}</span>
