@@ -15,6 +15,7 @@ import { buildAssetId, siteFor } from "@/data/asset-data"
 import { plants } from "@/data/dashboard"
 import { useAssetRows } from "@/data/asset-store"
 import type { AssetFormValues } from "@/pages/assets/schemas"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 /**
  * Step 1 of 4: where the asset sits and what it is.
@@ -45,6 +46,7 @@ export function StepDetails({
   const category = form.watch("category")
   const department = form.watch("department")
   const plant = form.watch("plant")
+  const lockedPlant = useLockedPlant()
   const site = siteFor(plant)
   const departments = Object.keys(site.departments)
 
@@ -83,6 +85,8 @@ export function StepDetails({
             label="Plant"
             required
             options={plants.map((p) => p.name)}
+            // An EMMSE-0 user registers assets only at the plant they picked
+            disabled={!!lockedPlant}
             // The new plant's own registered location becomes the default position
             onValueChange={(value) => {
               const next = siteFor(value)

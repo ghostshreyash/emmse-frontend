@@ -1,12 +1,12 @@
 import { Building2, CalendarDays, Factory, Gauge, MapPin, UserRound, type LucideIcon } from "lucide-react"
 
-import type { Plant } from "@/data/dashboard"
+import type { PlantSummary } from "@/data/plant-store"
 
 /**
  * The selected plant at a glance, shown beside the enterprise card. Asset counts and
  * health are left to the KPI tiles just below, so nothing here repeats them.
  */
-export function PlantInfo({ plant }: { plant: Plant }) {
+export function PlantInfo({ plant }: { plant: PlantSummary }) {
   const facts: { icon: LucideIcon; label: string; value: string | number; tone: string }[] = [
     { icon: Gauge, label: "Capacity", value: plant.capacity, tone: "text-attention" },
     { icon: Building2, label: "Departments", value: plant.departments, tone: "text-primary" },

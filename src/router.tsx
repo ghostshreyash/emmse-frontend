@@ -1,6 +1,6 @@
 import { createBrowserRouter } from "react-router"
 
-import { PublicOnly, RequireAuth } from "@/components/auth/require-auth"
+import { EnterpriseOnly, PublicOnly, RequireAuth } from "@/components/auth/require-auth"
 import { LoginPage } from "@/pages/auth/login"
 import { VerifyOtpPage } from "@/pages/auth/verify-otp"
 import { ForgotPasswordPage } from "@/pages/auth/forgot-password"
@@ -10,6 +10,10 @@ import { RegisterPage } from "@/pages/auth/register"
 import { AccountRecoveryPage } from "@/pages/auth/account-recovery"
 import { ComingSoonPage } from "@/pages/coming-soon"
 import { DashboardPage } from "@/pages/dashboard"
+import { PlantsPanelPage } from "@/pages/plants-panel"
+import { PlantsListPage } from "@/pages/plants-list"
+import { PlantDetailsPage } from "@/pages/plant-details"
+import { AddPlantPage } from "@/pages/plant-onboarding/add-plant"
 import { AppLayout } from "@/layouts/app-layout"
 import { sections } from "@/config/navigation"
 import { ProfilePage } from "@/pages/profile"
@@ -26,9 +30,12 @@ import { SupportTicketsPage } from "@/pages/support-tickets"
 import { SupportTicketDetailsPage } from "@/pages/support-ticket-details"
 import { InspectionDetailsPage } from "@/pages/inspection-details"
 import { AddInspectionPage } from "@/pages/add-inspection"
+import { VisitsPage } from "@/pages/visits"
+import { AddVisitPage } from "@/pages/add-visit"
+import { VisitDetailsPage } from "@/pages/visit-details"
 
 /** Sections with a real screen; every other section gets a placeholder page */
-const built = new Set(["/", "/assets", "/tasks", "/inspection-activities", "/reports", "/support-tickets", "/support"])
+const built = new Set(["/", "/plants-list", "/assets", "/tasks", "/inspection-activities", "/visits", "/reports", "/support-tickets", "/support"])
 
 export const router = createBrowserRouter([
   { path: "/login", element: <PublicOnly><LoginPage /></PublicOnly> },
@@ -44,11 +51,23 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
+      // A plant-level user's first screen after sign-in: full page, outside the app shell
+      { path: "plants", element: <PlantsPanelPage /> },
       {
         element: <AppLayout />,
         children: [
           { index: true, element: <DashboardPage /> },
           { path: "profile", element: <ProfilePage /> },
+          {
+            // The Plants register is the enterprise's; an EMMSE-0 user only sees their picked plant
+            element: <EnterpriseOnly />,
+            children: [
+              { path: "plants-list", element: <PlantsListPage /> },
+              /* "add" sits above ":id" so it is never read as a plant code */
+              { path: "plants-list/add", element: <AddPlantPage /> },
+              { path: "plants-list/:id", element: <PlantDetailsPage /> },
+            ],
+          },
           { path: "assets", element: <AssetsPage /> },
           /* Asset Onboarding (ported from EVITA); "add" sits above ":id" so it is never read as an Asset ID */
           { path: "assets/add", element: <AssetOnboardingPage /> },
@@ -61,6 +80,9 @@ export const router = createBrowserRouter([
           { path: "inspection-activities", element: <InspectionsPage /> },
           { path: "inspection-activities/add", element: <AddInspectionPage /> },
           { path: "inspection-activities/:id", element: <InspectionDetailsPage /> },
+          { path: "visits", element: <VisitsPage /> },
+          { path: "visits/add", element: <AddVisitPage /> },
+          { path: "visits/:id", element: <VisitDetailsPage /> },
           { path: "reports", element: <ReportsPage /> },
           // One asset's record: its detail and the three documents against it
           { path: "reports/:assetId", element: <ReportDetailsPage /> },

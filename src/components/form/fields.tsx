@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { Controller, type Control, type FieldPath, type FieldValues } from "react-hook-form"
-import { Calendar as CalendarIcon, Eye, EyeOff, UploadCloud, X} from "lucide-react"
+import { Calendar as CalendarIcon, Check, ChevronDown, Eye, EyeOff, UploadCloud, X} from "lucide-react"
 import { format, isValid, parseISO } from "date-fns"
 import { cn } from "cn"
 
@@ -179,7 +179,8 @@ export function SelectField<T extends FieldValues>({
   disabled,
   onValueChange,
 }: BaseProps<T> & {
-  options: readonly string[]
+  /** Plain values, or value/label pairs when what is stored differs from what is shown */
+  options: readonly (string | { value: string; label: string })[]
   placeholder?: string
   disabled?: boolean
   /** Runs after the value changes - used to clear a dependent field */
@@ -204,17 +205,123 @@ export function SelectField<T extends FieldValues>({
               <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent>
-              {options.map((o) => (
-                <SelectItem key={o} value={o}>
-                  {o}
-                </SelectItem>
-              ))}
+              {options.map((o) => {
+                const { value, label } = typeof o === "string" ? { value: o, label: o } : o
+                return (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                )
+              })}
             </SelectContent>
           </Select>
           {description ? <FieldDescription>{description}</FieldDescription> : null}
           <FieldError errors={[fieldState.error]} />
         </Field>
       )}
+    />
+  )
+}
+
+/**
+ * A dropdown that takes several options at once. The field holds an array; picked
+ * options show as a comma list on the trigger, and each one can be ticked off again.
+ */
+export function MultiSelectField<T extends FieldValues>({
+  control,
+  name,
+  label,
+  required,
+  className,
+  description,
+  options,
+  placeholder = "Select",
+}: BaseProps<T> & { options: readonly string[]; placeholder?: string }) {
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field, fieldState }) => {
+        const picked: string[] = field.value ?? []
+        const toggle = (o: string) => field.onChange(picked.includes(o) ? picked.filter((p) => p !== o) : [...picked, o])
+        return (
+          <Field data-invalid={fieldState.invalid} className={className}>
+            <FieldTitle label={label} required={required} htmlFor={name} />
+            <Popover onOpenChange={(open) => !open && field.onBlur()}>
+              {/* A div rather than a button, so each chip can carry its own remove button */}
+              <PopoverTrigger asChild>
+                <div
+                  id={name}
+                  role="combobox"
+                  tabIndex={0}
+                  aria-invalid={fieldState.invalid}
+                  aria-label={label}
+                  className="flex min-h-9 w-full cursor-pointer items-center justify-between gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive"
+                >
+                  {picked.length ? (
+                    <span className="flex min-w-0 flex-wrap gap-1">
+                      {picked.map((o) => (
+                        <span
+                          key={o}
+                          className="inline-flex items-center gap-1 rounded-md bg-primary/10 py-0.5 pr-0.5 pl-2 text-xs font-medium text-primary ring-1 ring-primary/20"
+                        >
+                          {o}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${o}`}
+                            // Remove without opening the list underneath
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggle(o)
+                            }}
+                            className="rounded p-0.5 hover:bg-primary/15"
+                          >
+                            <X className="size-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="truncate px-0.5 text-muted-foreground">{placeholder}</span>
+                  )}
+                  <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+                </div>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-56 p-1">
+                <ul role="listbox" aria-multiselectable="true" aria-label={label}>
+                  {options.map((o) => {
+                    const on = picked.includes(o)
+                    return (
+                      <li key={o}>
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={on}
+                          onClick={() => toggle(o)}
+                          className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
+                        >
+                          <span
+                            className={cn(
+                              "flex size-4 shrink-0 items-center justify-center rounded border",
+                              on ? "border-primary bg-primary text-primary-foreground" : "border-input"
+                            )}
+                          >
+                            {on ? <Check className="size-3" /> : null}
+                          </span>
+                          {o}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </PopoverContent>
+            </Popover>
+            {description ? <FieldDescription>{description}</FieldDescription> : null}
+            <FieldError errors={[fieldState.error]} />
+          </Field>
+        )
+      }}
     />
   )
 }

@@ -24,6 +24,11 @@ export type AuthUser = {
   enterprise: string
   /** Plant shown in the top bar; the enterprise's head-office plant for admins */
   plant: string
+  /**
+   * Works one plant at a time: picks it on the Plants screen straight after sign-in,
+   * and the dashboard is then held to that plant rather than offering every plant.
+   */
+  choosesPlant?: boolean
 }
 
 export type AuthSession = {
@@ -31,6 +36,8 @@ export type AuthSession = {
   issuedAt: number
   /** "Remember Me" keeps the session in localStorage instead of sessionStorage. */
   remember: boolean
+  /** The plant picked on the Plants screen, for a user who `choosesPlant` */
+  plantId?: string
 }
 
 /**

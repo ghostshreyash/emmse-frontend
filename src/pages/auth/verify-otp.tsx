@@ -39,7 +39,8 @@ export function VerifyOtpPage() {
           onVerify={async (code) => {
             const user = await verifyOtp(challenge, code)
             signIn(user, remember)
-            navigate(challenge.next ?? "/", { replace: true })
+            // A plant-level user picks the plant first; everyone else carries on as before
+            navigate(user.choosesPlant ? "/plants" : (challenge.next ?? "/"), { replace: true })
           }}
         />
       </AuthCard>

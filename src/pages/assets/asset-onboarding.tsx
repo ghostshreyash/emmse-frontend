@@ -19,6 +19,7 @@ import { StepTechnical } from "@/pages/assets/steps/step-technical"
 import { StepUploads } from "@/pages/assets/steps/step-uploads"
 import { StepReview } from "@/pages/assets/steps/step-review"
 import { AssetIdScreen } from "@/pages/assets/asset-id"
+import { useLockedPlant } from "@/lib/auth/use-locked-plant"
 
 const steps = [
   { title: "Asset Details" },
@@ -43,8 +44,9 @@ const steps = [
  */
 export function AssetOnboardingPage() {
   const navigate = useNavigate()
-  // Starts at the first plant; step 1 lets the admin pick any of the enterprise's plants
-  const site = useMemo(() => siteFor(plants[0].name), [])
+  // Starts at the first plant (an EMMSE-0 user's own plant); step 1 lets an admin pick any of the enterprise's plants
+  const lockedPlant = useLockedPlant()
+  const site = useMemo(() => siteFor(lockedPlant ?? plants[0].name), [lockedPlant])
 
   /* Correcting an asset rather than registering one, if the route names one */
   const { id: editing } = useParams()
